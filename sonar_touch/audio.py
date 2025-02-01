@@ -83,6 +83,9 @@ class AudioRingBuffer:
 class BackgroundRecorder:
     """Records audio from JACK in a background process.
 
+    This ensures that jack has a high priority so we don't block the jack server.
+    (If we do, jack will disconnect us.)
+
     Data is sent via shared memory into self.audio_queue in the main process.
     """
     def __init__(self):

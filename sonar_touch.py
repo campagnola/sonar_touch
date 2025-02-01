@@ -17,7 +17,7 @@ if __name__ == "__main__":
     recorder = BackgroundRecorder()
 
     # Start the main application
-    window = MainWindow(recorder.audio_queue)
+    window = MainWindow(recorder.audio_queue, recorder.sample_rate, recorder.block_size)
 
     # pg.QtCore.QTimer.singleShot(1000, recorder.start)
     # app.exec_()
