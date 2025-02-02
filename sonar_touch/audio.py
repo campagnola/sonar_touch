@@ -99,7 +99,9 @@ class BackgroundRecorder:
         self.sample_rate = self.recorder.client.samplerate._get_value()
         self.block_size = self.recorder.client.blocksize._get_value()
         self.n_channels = self.recorder.n_channels._get_value()
-        self.n_blocks = 10
+        assert self.n_channels == 4
+        assert self.block_size > 0
+        self.n_blocks = 10  # number of blocks in ring buffer
 
         # create shared memory
         self.shmem = teleprox.shmem.SharedNDArray.zeros((self.n_channels, 2 * self.block_size * self.n_blocks), dtype='float32')
