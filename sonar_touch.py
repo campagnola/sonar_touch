@@ -29,5 +29,7 @@ if __name__ == "__main__":
     # Start the main application
     window = MainWindow(recorder.audio_queue, recorder.sample_rate, recorder.block_size)
 
+    if sys.flags.interactive == 0:
+        app.exec_()
     # pg.QtCore.QTimer.singleShot(1000, recorder.start)
     # app.exec_()

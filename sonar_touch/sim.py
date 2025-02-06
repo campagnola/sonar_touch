@@ -1,7 +1,6 @@
 import queue, threading
 import numpy as np
 import time
-import pyqtgraph as pg
 
 
 class SimulatedRecorder:
