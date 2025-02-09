@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import pyqtgraph as pg
+import coorx
 
 app = pg.mkQApp()
 
@@ -36,13 +37,22 @@ class MainWindow(pg.QtWidgets.QWidget):
         self.trigger_plot = self.cw.addPlot(row=1, col=0)
         self.trigger_plot.setYRange(-.2, .2)
 
-        self.view = self.cw.addViewBox(row=0, col=1, rowspan=2)
-        self.projection_roi = ProjectionROI()
-        self.view.addItem(self.projection_roi)
-        self.view.setAspectLocked(True)
-
         self.resize(1200, 600)
         self.show()
+
+        # second window for projection
+        self.projected_view = ProjectedView()
+        self.projected_view.show()
+
+        quit_shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence("Ctrl+Q"), self)
+        quit_shortcut.setContext(pg.QtCore.Qt.ApplicationShortcut)
+        quit_shortcut.activated.connect(self.close)
+
+    def set_target(self, target):
+        for view in self.projected_view, self.local_view:
+            view.clear()
+            scatter = pg.ScatterPlotItem([target], size=30, pen='y')
+            view.addItem(scatter)
 
     def plot_data(self):
         if self.audio_queue.qsize() == 0:
@@ -89,6 +99,12 @@ class MainWindow(pg.QtWidgets.QWidget):
             self.trigger_plot.plot(t, chan, pen=(i, 4))
         self.trigger_plot.addLine(y=self.trigger_threshold, pen='w')
         self.trigger_plot.addLine(x=0, pen='w')
+            
+
+    def close(self):
+        self.timer.stop()
+        self.projected_view.close()
+        return super().close()
 
 
 class RollingBuffer:
@@ -115,4 +131,34 @@ class ProjectionROI(pg.PolyLineROI):
     def __init__(self):
         pos = [[0, 0], [1920, 0], [1920, 1280], [0, 1280]]
         pg.PolyLineROI.__init__(self, pos, closed=True)
+
+    def transform(self):
+        pts = self.getState()['points']
+        tr = coorx.linear.BilinearTransform()
+        tr.set_mapping(pts, [[0, 0], [1, 0], [1, 1], [0, 1]])
+        return tr
+
+
+class ProjectedView(pg.GraphicsLayoutWidget):
+    def __init__(self):
+        super().__init__()
+        self.view = self.addViewBox()
+        self.scatter = pg.ScatterPlotItem(size=10, pen='w')
+        self.view.addItem(self.scatter)
+
+        self.projection_roi = ProjectionROI()
+        self.projection_roi.sigRegionChanged.connect(self.projection_roi_changed)
+        self.view.addItem(self.projection_roi)
+        self.view.setAspectLocked(True)
+
+        self.resize(1920, 1080)
+
+    def projection_roi_changed(self):
+        tr = self.projection_roi.transform()
+        pts = np.empty((10, 10, 2), dtype=float)
+        pts[..., 0] = np.linspace(0, 1, 10).reshape(-1, 1)
+        pts[..., 1] = np.linspace(0, 1, 10).reshape(1, -1)
+        # print(pts[::9, ::9])
+        # print(tr.map(pts)[::9, ::9])
+        self.scatter.setData(pos=tr.imap(pts).reshape(100, 2))
 
