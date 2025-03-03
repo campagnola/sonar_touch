@@ -119,3 +119,63 @@ class BackgroundRecorder:
 
         # start recorder
         self.recorder.start()
+
+
+class RollingBuffer:
+    """Keep a rolling buffer of audio data and search for triggers.
+    """
+    def __init__(self, n_blocks):
+        self.n_blocks = n_blocks
+        self.blocks = []
+        self.next_search_index = 0
+        self._concatented_data = None
+
+    def add_from_queue(self, queue):
+        while queue.qsize() > 0:
+            self.blocks.append(queue.get())
+            self._concatented_data = None
+
+        while queue.qsize() > 0:
+            self.blocks.append(queue.get())
+            self._concatented_data = None
+
+        if len(self.blocks) > self.n_blocks:
+            discard = len(self.blocks) - self.n_blocks
+            self.blocks = self.blocks[discard:]
+            self._concatented_data = None
+
+    def get_data(self):
+        if self._concatented_data is None:
+            first_index:int = self.blocks[0][0]
+            self._concatenated_data = first_index, np.concatenate([block_data for (sample_index, block_data) in self.blocks], axis=1)
+        return self._concatenated_data
+
+    def get_trigger(self, trigger_threshold, pre_padding, post_padding, refractory_period):
+        pre_padding = int(pre_padding)
+        post_padding = int(post_padding)
+        refractory_period = int(refractory_period)
+
+        # search a small subset for trigggers
+        first_sample_id, data = self.get_data()
+        start_sample:int = max(self.next_search_index - first_sample_id, pre_padding)
+        stop_sample:int = data.shape[1] - post_padding
+        search_data = data[:, start_sample:stop_sample]
+
+        # pad_samples = pad_blocks * self.block_size        
+        # search_data = data[:, pad_samples:-pad_samples]
+        mask = np.abs(search_data) > trigger_threshold
+        mask_change = mask[:, 1:] & ~mask[:, :-1]
+        triggers = [np.argwhere(mask_change[i])[:, 0] for i in range(mask_change.shape[0])]
+        triggers = [t[0] for t in triggers if len(t) > 0]
+        if len(triggers) == 0:
+            self.next_search_index = first_sample_id + stop_sample
+            return
+        
+        # got a trigger
+        trigger = min(triggers) + start_sample
+        self.next_search_index = first_sample_id + trigger + refractory_period
+        first_return_sample = max(0, trigger - pre_padding)
+        last_return_sample = trigger + post_padding
+        plot_data = data[:, first_return_sample:last_return_sample]
+
+        return {'data': plot_data, 'index': trigger-first_return_sample, 'trigger_sample_id': first_sample_id + trigger}

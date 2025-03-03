@@ -10,8 +10,9 @@ class SonarTouchProject:
     def __init__(self, project_path):
         self.project_path = project_path
         self.state_file = os.path.join(project_path, 'project.json')
-        self.training_data_path = os.path.join(project_path, 'training_data')
+        self.training_data_path = 'training_data'
         self.training_index_file = os.path.join(project_path, 'training_index.jsonl')
+        self.next_example_id = 0
         self.load()
 
     def load(self):
@@ -25,7 +26,6 @@ class SonarTouchProject:
     def save(self, **kwargs):
         if not os.path.exists(self.project_path):
             os.makedirs(self.project_path)
-            os.makedirs(self.training_data_path)
 
         self.state.update(kwargs)
         state_json = json.dumps(self.state)
@@ -38,14 +38,19 @@ class SonarTouchProject:
             for line in open(self.training_index_file, 'r'):
                 index.append(json.loads(line))
         self.training_index = index
+        self.next_example_id = index[-1]['id'] + 1 if len(index) > 0 else 0
 
     def save_training_example(self, data, location):
         """Save a training example to disk, where data is a numpy array (N, n_channels) and location is a tuple (x, y)
         """
-        next_index = len(self.training_index)
-        filename = os.path.join(self.training_data_path, f'{next_index:06d}.npy')        
-        np.save(filename, data)
-        self.training_index.append({'filename': filename, 'location': location})
+        full_training_data_path = os.path.join(self.project_path, self.training_data_path)
+        if not os.path.exists(full_training_data_path):
+            os.makedirs(full_training_data_path)
+        next_id = self.next_example_id
+        self.next_example_id += 1
+        filename = os.path.join(self.training_data_path, f'{next_id:06d}.npy')
+        np.save(os.path.join(self.project_path, filename), data)
+        self.training_index.append({'filename': filename, 'location': location, 'id': next_id})
         record = json.dumps(self.training_index[-1])
         with open(self.training_index_file, 'a') as f:
             f.write(record + '\n')

@@ -3,12 +3,15 @@ import numpy as np
 import pyqtgraph as pg
 import coorx
 
+from sonar_touch.audio import RollingBuffer
 from sonar_touch.project import SonarTouchProject
+from sonar_touch.training import TrainingDataCollector
 
 app = pg.mkQApp()
 
 
 class MainWindow(pg.QtWidgets.QMainWindow):
+
     def __init__(self, audio_queue, sample_rate, block_size):
         super().__init__()
         self.audio_queue = audio_queue
@@ -16,25 +19,30 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.block_size = block_size
         self.init_ui()
 
-        self.search_blocks = 4
-        self.pad_blocks = 2
-        self.buffer = RollingBuffer(self.search_blocks + 2 * self.pad_blocks)
         self.last_trigger_time = 0
         self.trigger_threshold = 0.01
+        self.refractory_period = 0.2
+        self.trigger_padding = (0.01, 0.03)
+        self.full_buffer_length = 2.0
+        self.buffer = RollingBuffer(int(self.full_buffer_length * self.sample_rate / self.block_size) + 1)
 
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.handle_audio_data)
         self.timer.start(50)
 
         self.project = None
+        self.trainer = None
         
     def init_ui(self):
         self.setWindowTitle("Sonar Touch")
 
         # file menu for loading a project folder
         file_menu = self.menuBar().addMenu("&File")
-        load_action = file_menu.addAction("&Load")
-        load_action.triggered.connect(self.load_project_triggered)
+        self.load_action = file_menu.addAction("&Load")
+        self.load_action.triggered.connect(self.load_project_triggered)
+
+        self.train_action = file_menu.addAction("&Start Training")
+        self.train_action.triggered.connect(self.start_training)
 
         layout = pg.QtWidgets.QGridLayout()
         self.setCentralWidget(pg.QtWidgets.QWidget())
@@ -85,32 +93,29 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         if now - self.last_trigger_time < 0.5:
             return
 
-        # search a small subset for trigggers
-        pad_samples = self.pad_blocks * self.block_size        
-        search_data = data[:, pad_samples:-pad_samples]
-        mask = np.abs(search_data) > self.trigger_threshold
-        mask_change = mask[:, 1:] & ~mask[:, :-1]
-        triggers = [np.argwhere(mask_change[i])[:, 0] for i in range(mask_change.shape[0])]
-        triggers = [t[0] for t in triggers if len(t) > 0]
-        if len(triggers) == 0:
+        # look for a trigger
+        trigger_result = self.buffer.get_trigger(
+            self.trigger_threshold, 
+            pre_padding=self.trigger_padding[0] * self.sample_rate, 
+            post_padding=self.trigger_padding[1] * self.sample_rate,
+            refractory_period=self.refractory_period * self.sample_rate,
+        )
+        if trigger_result is None:
             return
         
-        # got a trigger
-        trigger = min(triggers)
+        plot_data = trigger_result['data']
+        trigger_index = trigger_result['index']
         self.last_trigger_time = now
 
-        trigger_index = trigger + pad_samples
-        # print(trigger_index, data[:, trigger_index - 1:trigger_index + 1])
-        plot_duration = 0.01
-        pad_samples = int(plot_duration * self.sample_rate)
-        plot_data = data[:, trigger_index - int(pad_samples*0.5):trigger_index + int(pad_samples*1.5)]
-
         self.trigger_plot.clear()
-        t = (np.arange(plot_data.shape[1]) - pad_samples*0.5) / self.sample_rate
+        t = (np.arange(plot_data.shape[1]) - trigger_index) / self.sample_rate
         for i,chan in enumerate(plot_data):
             self.trigger_plot.plot(t, chan, pen=(i, 4))
         self.trigger_plot.addLine(y=self.trigger_threshold, pen='w')
         self.trigger_plot.addLine(x=0, pen='w')
+
+        if self.trainer is not None:
+            self.trainer.trigger_detected(trigger_result)
             
     def close(self):
         self.timer.stop()
@@ -135,26 +140,16 @@ class MainWindow(pg.QtWidgets.QMainWindow):
                 projection_roi_state=self.projected_view.projection_roi.saveState()
             )
 
-
-class RollingBuffer:
-    def __init__(self, n_blocks):
-        self.n_blocks = n_blocks
-        self.blocks = []
-
-    def add_from_queue(self, queue):
-        while queue.qsize() > 0:
-            self.blocks.append(queue.get())
-
-        while queue.qsize() > 0:
-            self.blocks.append(queue.get())
-
-        if len(self.blocks) > self.n_blocks:
-            discard = len(self.blocks) - self.n_blocks
-            self.blocks = self.blocks[discard:]
-
-    def get_data(self):
-        first_index = self.blocks[0][0]
-        return first_index, np.concatenate([block_data for (sample_index, block_data) in self.blocks], axis=1)
+    def start_training(self):
+        if self.project is None:
+            raise ValueError("No project loaded")
+        if self.trainer is None:
+            self.trainer = TrainingDataCollector(self)
+            self.trainer.start()
+            self.train_action.setText("&Stop Training")
+        else:
+            self.trainer.stop()
+            self.train_action.setText("&Start Training")
 
 
 class ProjectionROI(pg.PolyLineROI):
@@ -190,6 +185,11 @@ class ProjectedView(pg.GraphicsLayoutWidget):
         self.view.addItem(self.projection_roi)
         self.view.setAspectLocked(True)
 
+        self.target = pg.TargetItem()
+        self.view.addItem(self.target)
+        self.target.setVisible(False)
+        self.target_pos = [0, 0]
+
         self.resize(1920, 1080)
 
         self.view.scene().sigMouseClicked.connect(self.mouse_clicked)
@@ -205,6 +205,16 @@ class ProjectedView(pg.GraphicsLayoutWidget):
             pts[(i + n_lines) * 2 + 1] = [x, 1]
         mapped = tr.imap(pts)
         self.grid.setData(mapped[:, 0], mapped[:, 1], connect='pairs')
+        self.update_target()
+
+    def update_target(self):
+        tr = self.projection_roi.transform()
+        self.target.setPos(*tr.imap(self.target_pos))
 
     def mouse_clicked(self, ev):
         self.mouse_cliecked
+
+    def set_target(self, target):
+        self.target_pos = target
+        self.target.setVisible(True)
+        self.update_target()
