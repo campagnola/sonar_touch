@@ -15,8 +15,10 @@ class SimulatedRecorder:
         self.thread.start()
 
     def _run(self):
+        sample_index = 0
         t_step = self.block_size / self.sample_rate
         while True:
             data = np.random.normal(size=(self.n_channels, self.block_size), scale=0.0021)
-            self.audio_queue.put(data)
+            self.audio_queue.put((sample_index, data))
             time.sleep(t_step)
+            sample_index += self.block_size

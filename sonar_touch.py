@@ -16,6 +16,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # flag to simulate audio rther than record
     parser.add_argument("--sim", action="store_true", default=False, help="Simulate audio input")
+    # project flag requires a filename argument
+    parser.add_argument("--project", type=str, help="Load a project file")
     args = parser.parse_args()
 
 
@@ -28,6 +30,9 @@ if __name__ == "__main__":
 
     # Start the main application
     window = MainWindow(recorder.audio_queue, recorder.sample_rate, recorder.block_size)
+
+    if args.project:
+        window.load_project(args.project)
 
     if sys.flags.interactive == 0:
         app.exec_()

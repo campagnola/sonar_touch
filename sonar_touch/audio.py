@@ -113,7 +113,7 @@ class BackgroundRecorder:
         self.audio_queue = queue.Queue()
         def new_audio_event(sample_id, start_index, block_size):
             block = self.shmem.data[:, start_index:start_index + block_size].copy()
-            self.audio_queue.put(block)
+            self.audio_queue.put((sample_id, block))
         callback = callback_server.get_proxy(new_audio_event)
         self.ring_buffer = proc_audio.AudioRingBuffer(rshmem.data, self.recorder.audio_queue, callback)
 

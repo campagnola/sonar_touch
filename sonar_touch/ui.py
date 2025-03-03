@@ -3,10 +3,12 @@ import numpy as np
 import pyqtgraph as pg
 import coorx
 
+from sonar_touch.project import SonarTouchProject
+
 app = pg.mkQApp()
 
 
-class MainWindow(pg.QtWidgets.QWidget):
+class MainWindow(pg.QtWidgets.QMainWindow):
     def __init__(self, audio_queue, sample_rate, block_size):
         super().__init__()
         self.audio_queue = audio_queue
@@ -21,13 +23,22 @@ class MainWindow(pg.QtWidgets.QWidget):
         self.trigger_threshold = 0.01
 
         self.timer = pg.QtCore.QTimer()
-        self.timer.timeout.connect(self.plot_data)
+        self.timer.timeout.connect(self.handle_audio_data)
         self.timer.start(50)
+
+        self.project = None
         
     def init_ui(self):
         self.setWindowTitle("Sonar Touch")
+
+        # file menu for loading a project folder
+        file_menu = self.menuBar().addMenu("&File")
+        load_action = file_menu.addAction("&Load")
+        load_action.triggered.connect(self.load_project_triggered)
+
         layout = pg.QtWidgets.QGridLayout()
-        self.setLayout(layout)
+        self.setCentralWidget(pg.QtWidgets.QWidget())
+        self.centralWidget().setLayout(layout)
 
         self.cw = pg.GraphicsLayoutWidget()
         layout.addWidget(self.cw, 0, 0)
@@ -43,6 +54,7 @@ class MainWindow(pg.QtWidgets.QWidget):
         # second window for projection
         self.projected_view = ProjectedView()
         self.projected_view.show()
+        self.projected_view.projection_roi.sigRegionChangeFinished.connect(self.projection_roi_changed)
 
         quit_shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence("Ctrl+Q"), self)
         quit_shortcut.setContext(pg.QtCore.Qt.ApplicationShortcut)
@@ -54,13 +66,13 @@ class MainWindow(pg.QtWidgets.QWidget):
             scatter = pg.ScatterPlotItem([target], size=30, pen='y')
             view.addItem(scatter)
 
-    def plot_data(self):
+    def handle_audio_data(self):
         if self.audio_queue.qsize() == 0:
             return
 
         # read all available data from the queue into rolling buffer
         self.buffer.add_from_queue(self.audio_queue)
-        data = self.buffer.get_data()
+        sample_index, data = self.buffer.get_data()
 
         # plot all data in the buffer
         self.plot.clear()
@@ -100,11 +112,28 @@ class MainWindow(pg.QtWidgets.QWidget):
         self.trigger_plot.addLine(y=self.trigger_threshold, pen='w')
         self.trigger_plot.addLine(x=0, pen='w')
             
-
     def close(self):
         self.timer.stop()
         self.projected_view.close()
         return super().close()
+
+    def load_project_triggered(self):
+        folder = pg.QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Folder")
+        if folder == "":
+            self.project = None
+            return
+        self.load_project(folder)
+        
+    def load_project(self, folder):
+        self.project = SonarTouchProject(folder)
+        if 'projection_roi_state' in self.project.state:
+            self.projected_view.projection_roi.setState(self.project.state['projection_roi_state'])
+
+    def projection_roi_changed(self):
+        if self.project is not None:
+            self.project.save(
+                projection_roi_state=self.projected_view.projection_roi.saveState()
+            )
 
 
 class RollingBuffer:
@@ -124,7 +153,8 @@ class RollingBuffer:
             self.blocks = self.blocks[discard:]
 
     def get_data(self):
-        return np.concatenate(self.blocks, axis=1)
+        first_index = self.blocks[0][0]
+        return first_index, np.concatenate([block_data for (sample_index, block_data) in self.blocks], axis=1)
 
 
 class ProjectionROI(pg.PolyLineROI):
@@ -133,18 +163,27 @@ class ProjectionROI(pg.PolyLineROI):
         pg.PolyLineROI.__init__(self, pos, closed=True)
 
     def transform(self):
-        pts = self.getState()['points']
-        tr = coorx.linear.BilinearTransform()
+        pts = self.saveState()['points']
+        tr = coorx.linear.Homography2DTransform()
         tr.set_mapping(pts, [[0, 0], [1, 0], [1, 1], [0, 1]])
         return tr
+
+    def setState(self, state):
+        self.blockSignals(True)
+        try:
+            super().setState(state)
+        finally:
+            self.blockSignals(False)
+        self.sigRegionChanged.emit(self)
+        self.sigRegionChangeFinished.emit(self)
 
 
 class ProjectedView(pg.GraphicsLayoutWidget):
     def __init__(self):
         super().__init__()
         self.view = self.addViewBox()
-        self.scatter = pg.ScatterPlotItem(size=10, pen='w')
-        self.view.addItem(self.scatter)
+        self.grid = pg.PlotCurveItem(pen=0.5)
+        self.view.addItem(self.grid)
 
         self.projection_roi = ProjectionROI()
         self.projection_roi.sigRegionChanged.connect(self.projection_roi_changed)
@@ -153,12 +192,19 @@ class ProjectedView(pg.GraphicsLayoutWidget):
 
         self.resize(1920, 1080)
 
+        self.view.scene().sigMouseClicked.connect(self.mouse_clicked)
+
     def projection_roi_changed(self):
         tr = self.projection_roi.transform()
-        pts = np.empty((10, 10, 2), dtype=float)
-        pts[..., 0] = np.linspace(0, 1, 10).reshape(-1, 1)
-        pts[..., 1] = np.linspace(0, 1, 10).reshape(1, -1)
-        # print(pts[::9, ::9])
-        # print(tr.map(pts)[::9, ::9])
-        self.scatter.setData(pos=tr.imap(pts).reshape(100, 2))
+        pts = np.empty((20, 2), dtype=float)
+        n_lines = 5
+        for i,x in enumerate(np.linspace(0, 1, n_lines)):
+            pts[i*2] = [0, x]
+            pts[i*2 + 1] = [1, x]
+            pts[(i + n_lines) * 2] = [x, 0]
+            pts[(i + n_lines) * 2 + 1] = [x, 1]
+        mapped = tr.imap(pts)
+        self.grid.setData(mapped[:, 0], mapped[:, 1], connect='pairs')
 
+    def mouse_clicked(self, ev):
+        self.mouse_cliecked
