@@ -1,5 +1,5 @@
-Snar Touch
-==========
+Sonar Touch
+===========
 
 Turn any surface into a user input device by attaching contact microphones. 
 
