@@ -29,12 +29,12 @@ class TrainingDataCollector:
         self.ui.projected_view.set_target(self.requested_location)
 
     def generate_locations(self):
-        n_steps = 20
-        for i,row in enumerate(np.linspace(0, 1, n_steps)):
-            for col in np.linspace(0, 1, n_steps):
-                if i % 2 == 1:
-                    col = 1 - col
-                yield (
-                    np.clip(row + np.random.random() / (n_steps - 1), 0, 1), 
-                    np.clip(col + np.random.random() / (n_steps - 1), 0, 1),
-                )
+        while True:
+            for i,row in enumerate(np.linspace(0, 1, 40)):
+                for col in np.linspace(0, 1, 60):
+                    if i % 2 == 1:
+                        col = 1 - col
+                    yield (
+                        np.clip(col, 0, 1),
+                        np.clip(row, 0, 1), 
+                    )

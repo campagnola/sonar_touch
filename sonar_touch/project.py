@@ -1,7 +1,8 @@
 import json
 import os
-
+import torch
 import numpy as np
+import sonar_touch.models
 
 
 class SonarTouchProject:
@@ -54,3 +55,28 @@ class SonarTouchProject:
         record = json.dumps(self.training_index[-1])
         with open(self.training_index_file, 'a') as f:
             f.write(record + '\n')
+
+    def load_training_data(self):
+        for example in self.training_index:
+            if 'data' in example:
+                continue
+            filename = os.path.join(self.project_path, example['filename'])
+            example['data'] = np.load(filename)
+        return self.training_index
+
+    def list_models(self):
+        model_fies = [f for f in os.listdir(self.project_path) if f.endswith('.pth')]
+        return sorted(model_fies)
+    
+    def load_model(self, model_name):
+        print(f"Loading model {model_name}")
+        class_name = os.path.splitext(model_name.split('_')[1])[0]
+        model_class = getattr(sonar_touch.models, class_name)
+        model = model_class()
+        model.load(os.path.join(self.project_path, model_name))
+        # send model to the GPU if available
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model.to(device)
+        model.device = device
+        return model
+    

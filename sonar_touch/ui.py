@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import pyqtgraph as pg
+import torch
 import coorx
 
 from sonar_touch.audio import RollingBuffer
@@ -32,6 +33,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
 
         self.project = None
         self.trainer = None
+        self.model = None        
         
     def init_ui(self):
         self.setWindowTitle("Sonar Touch")
@@ -61,18 +63,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
 
         # second window for projection
         self.projected_view = ProjectedView()
-        self.projected_view.show()
         self.projected_view.projection_roi.sigRegionChangeFinished.connect(self.projection_roi_changed)
 
         quit_shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence("Ctrl+Q"), self)
         quit_shortcut.setContext(pg.QtCore.Qt.ApplicationShortcut)
         quit_shortcut.activated.connect(self.close)
-
-    def set_target(self, target):
-        for view in self.projected_view, self.local_view:
-            view.clear()
-            scatter = pg.ScatterPlotItem([target], size=30, pen='y')
-            view.addItem(scatter)
 
     def handle_audio_data(self):
         if self.audio_queue.qsize() == 0:
@@ -114,8 +109,10 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.trigger_plot.addLine(y=self.trigger_threshold, pen='w')
         self.trigger_plot.addLine(x=0, pen='w')
 
-        if self.trainer is not None:
+        if self.trainer is not None and self.trainer.run:
             self.trainer.trigger_detected(trigger_result)
+        elif self.model is not None:
+            self.predict(trigger_result)
             
     def close(self):
         self.timer.stop()
@@ -133,6 +130,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.project = SonarTouchProject(folder)
         if 'projection_roi_state' in self.project.state:
             self.projected_view.projection_roi.setState(self.project.state['projection_roi_state'])
+        models = self.project.list_models()
+        if len(models) > 0:
+            self.model = self.project.load_model(models[-1])
 
     def projection_roi_changed(self):
         if self.project is not None:
@@ -150,6 +150,14 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         else:
             self.trainer.stop()
             self.train_action.setText("&Start Training")
+
+    def predict(self, trigger):
+        if self.model is None:
+            return
+        data = trigger['data']
+        tensor = torch.tensor(data.reshape(1, 4, -1), dtype=torch.float32).to(self.model.device)
+        location = self.model(tensor).detach().cpu().numpy()[0]
+        self.projected_view.set_target(location)
 
 
 class ProjectionROI(pg.PolyLineROI):
@@ -177,8 +185,10 @@ class ProjectedView(pg.GraphicsLayoutWidget):
     def __init__(self):
         super().__init__()
         self.view = self.addViewBox()
+        self.view.setRange(xRange=[0, 1920], yRange=[0, 1080], padding=0)
         self.grid = pg.PlotCurveItem(pen=0.5)
         self.view.addItem(self.grid)
+        self.view.setMouseEnabled(False, False)
 
         self.projection_roi = ProjectionROI()
         self.projection_roi.sigRegionChanged.connect(self.projection_roi_changed)
@@ -190,9 +200,19 @@ class ProjectedView(pg.GraphicsLayoutWidget):
         self.target.setVisible(False)
         self.target_pos = [0, 0]
 
-        self.resize(1920, 1080)
-
         self.view.scene().sigMouseClicked.connect(self.mouse_clicked)
+
+        # move projected view to second monitor if available
+        screens = pg.QtWidgets.QApplication.screens()
+        if len(screens) > 1:
+            for screen in screens:
+                if screen != pg.QtWidgets.QApplication.primaryScreen():
+                    break
+            self.show()  # show the window to get a window handle
+            self.windowHandle().setScreen(screen)
+            self.setGeometry(screen.geometry())
+            self.showFullScreen()
+
 
     def projection_roi_changed(self):
         tr = self.projection_roi.transform()
@@ -212,7 +232,8 @@ class ProjectedView(pg.GraphicsLayoutWidget):
         self.target.setPos(*tr.imap(self.target_pos))
 
     def mouse_clicked(self, ev):
-        self.mouse_cliecked
+        # self.mouse_clicked
+        pass
 
     def set_target(self, target):
         self.target_pos = target
