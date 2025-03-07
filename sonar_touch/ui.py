@@ -131,6 +131,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         if 'projection_roi_state' in self.project.state:
             self.projected_view.projection_roi.setState(self.project.state['projection_roi_state'])
         models = self.project.list_models()
+        print("Available models:", models)
         if len(models) > 0:
             self.model = self.project.load_model(models[-1])
 
