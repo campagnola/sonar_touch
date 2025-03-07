@@ -1,5 +1,6 @@
 import time
 import os
+import json
 import numpy as np
 import pyqtgraph as pg
 import torch
@@ -214,15 +215,15 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.training_tree.clear()
         
         # Get training index
-        training_index = self.project.load_training_index()
-        if training_index is None:
+        if not hasattr(self.project, 'training_index') or not self.project.training_index:
             return
             
         # Add each example to the tree
-        for filename, metadata in training_index.items():
+        for entry in self.project.training_index:
+            filename = entry['filename']
             item = pg.QtWidgets.QTreeWidgetItem([filename])
-            item.setData(0, pg.QtCore.Qt.UserRole, metadata)
-            self.training_tree.addItem(item)
+            item.setData(0, pg.QtCore.Qt.UserRole, entry)
+            self.training_tree.addTopLevelItem(item)
             
     def training_example_selected(self):
         """Handle selection of a training example in the tree"""
@@ -233,10 +234,10 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             
         item = selected_items[0]
         metadata = item.data(0, pg.QtCore.Qt.UserRole)
-        filename = item.text(0)
+        filename = metadata['filename']
         
         # Load the training example data
-        example_path = os.path.join(self.project.training_dir, filename)
+        example_path = os.path.join(self.project.project_path, filename)
         try:
             example_data = np.load(example_path)
             audio_data = example_data['data']
@@ -261,7 +262,8 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             return
             
         item = selected_items[0]
-        filename = item.text(0)
+        metadata = item.data(0, pg.QtCore.Qt.UserRole)
+        filename = metadata['filename']
         
         # Confirm deletion
         confirm = pg.QtWidgets.QMessageBox.question(
@@ -274,14 +276,16 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         if confirm == pg.QtWidgets.QMessageBox.Yes:
             try:
                 # Delete the file
-                example_path = os.path.join(self.project.training_dir, filename)
+                example_path = os.path.join(self.project.project_path, filename)
                 os.remove(example_path)
                 
                 # Update the training index
-                training_index = self.project.load_training_index()
-                if filename in training_index:
-                    del training_index[filename]
-                    self.project.save_training_index(training_index)
+                self.project.training_index = [entry for entry in self.project.training_index 
+                                              if entry['filename'] != filename]
+                # Rewrite the index file
+                with open(self.project.training_index_file, 'w') as f:
+                    for entry in self.project.training_index:
+                        f.write(json.dumps(entry) + '\n')
                 
                 # Remove from tree
                 self.training_tree.takeTopLevelItem(self.training_tree.indexOfTopLevelItem(item))
