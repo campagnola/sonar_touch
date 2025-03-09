@@ -66,7 +66,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # Training data tree widget
         self.training_tree = pg.QtWidgets.QTreeWidget()
         self.training_tree.setHeaderLabels(["Training Examples"])
-        self.training_tree.setSelectionMode(pg.QtWidgets.QAbstractItemView.MultiSelection)
+        self.training_tree.setSelectionMode(pg.QtWidgets.QAbstractItemView.ContiguousSelection)
         self.training_tree.itemSelectionChanged.connect(self.training_example_selected)
         left_layout.addWidget(self.training_tree)
         
