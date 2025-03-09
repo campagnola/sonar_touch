@@ -296,7 +296,8 @@ class ProjectionROI(pg.PolyLineROI):
     def __init__(self):
         pos = [[0, 0], [1920, 0], [1920, 1280], [0, 1280]]
         pg.PolyLineROI.__init__(self, pos, closed=True)
-
+        self.selected_handle = None
+        
     def transform(self):
         pts = self.saveState()['points']
         tr = coorx.linear.Homography2DTransform()
@@ -311,6 +312,26 @@ class ProjectionROI(pg.PolyLineROI):
             self.blockSignals(False)
         self.sigRegionChanged.emit(self)
         self.sigRegionChangeFinished.emit(self)
+        
+    def select_handle(self, index):
+        """Select a handle by index (0-3) and update its appearance"""
+        # Reset all handles to default appearance
+        for h in self.handles:
+            h['item'].setPen(pg.mkPen(255, 255, 255))
+            
+        # Set the selected handle
+        if 0 <= index < len(self.handles):
+            self.selected_handle = self.handles[index]['item']
+            self.selected_handle.setPen(pg.mkPen(255, 0, 0, width=2))
+        else:
+            self.selected_handle = None
+            
+    def move_selected_handle(self, dx, dy):
+        """Move the selected handle by the specified delta"""
+        if self.selected_handle is not None:
+            pos = self.selected_handle.pos()
+            self.selected_handle.setPos(pos.x() + dx, pos.y() + dy)
+            self.sigRegionChangeFinished.emit(self)
 
 
 class ProjectedView(pg.GraphicsLayoutWidget):
@@ -333,6 +354,9 @@ class ProjectedView(pg.GraphicsLayoutWidget):
         self.target_pos = [0, 0]
 
         self.view.scene().sigMouseClicked.connect(self.mouse_clicked)
+        
+        # Set up keyboard shortcuts
+        self.setup_keyboard_shortcuts()
 
         # move projected view to second monitor if available
         screens = pg.QtWidgets.QApplication.screens()
@@ -371,3 +395,52 @@ class ProjectedView(pg.GraphicsLayoutWidget):
         self.target_pos = target
         self.target.setVisible(True)
         self.update_target()
+        
+    def setup_keyboard_shortcuts(self):
+        """Set up keyboard shortcuts for ROI corner selection and movement"""
+        # Corner selection shortcuts (1-4 keys)
+        for i in range(4):
+            shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence(str(i+1)), self)
+            shortcut.activated.connect(lambda idx=i: self.projection_roi.select_handle(idx))
+            
+        # Arrow key shortcuts for moving the selected corner
+        arrow_keys = {
+            pg.QtCore.Qt.Key_Left: (-1, 0),
+            pg.QtCore.Qt.Key_Right: (1, 0),
+            pg.QtCore.Qt.Key_Up: (0, -1),
+            pg.QtCore.Qt.Key_Down: (0, 1)
+        }
+        
+        for key, delta in arrow_keys.items():
+            shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence(key), self)
+            shortcut.activated.connect(lambda dx=delta[0], dy=delta[1]: 
+                                      self.projection_roi.move_selected_handle(dx, dy))
+    
+    def keyPressEvent(self, event):
+        """Handle key press events for arrow keys"""
+        key = event.key()
+        
+        # Handle number keys 1-4 for corner selection
+        if pg.QtCore.Qt.Key_1 <= key <= pg.QtCore.Qt.Key_4:
+            self.projection_roi.select_handle(key - pg.QtCore.Qt.Key_1)
+            event.accept()
+            return
+            
+        # Handle arrow keys for moving the selected corner
+        if key in (pg.QtCore.Qt.Key_Left, pg.QtCore.Qt.Key_Right, 
+                  pg.QtCore.Qt.Key_Up, pg.QtCore.Qt.Key_Down):
+            dx, dy = 0, 0
+            if key == pg.QtCore.Qt.Key_Left:
+                dx = -1
+            elif key == pg.QtCore.Qt.Key_Right:
+                dx = 1
+            elif key == pg.QtCore.Qt.Key_Up:
+                dy = -1
+            elif key == pg.QtCore.Qt.Key_Down:
+                dy = 1
+                
+            self.projection_roi.move_selected_handle(dx, dy)
+            event.accept()
+            return
+            
+        super().keyPressEvent(event)
