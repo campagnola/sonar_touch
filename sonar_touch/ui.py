@@ -355,8 +355,9 @@ class ProjectedView(pg.GraphicsLayoutWidget):
 
         self.view.scene().sigMouseClicked.connect(self.mouse_clicked)
         
-        # Set up keyboard shortcuts
+        # Enable keyboard focus for key events
         self.setup_keyboard_shortcuts()
+        self.setFocus()
 
         # move projected view to second monitor if available
         screens = pg.QtWidgets.QApplication.screens()
@@ -397,24 +398,8 @@ class ProjectedView(pg.GraphicsLayoutWidget):
         self.update_target()
         
     def setup_keyboard_shortcuts(self):
-        """Set up keyboard shortcuts for ROI corner selection and movement"""
-        # Corner selection shortcuts (1-4 keys)
-        for i in range(4):
-            shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence(str(i+1)), self)
-            shortcut.activated.connect(lambda idx=i: self.projection_roi.select_handle(idx))
-            
-        # Arrow key shortcuts for moving the selected corner
-        arrow_keys = {
-            pg.QtCore.Qt.Key_Left: (-1, 0),
-            pg.QtCore.Qt.Key_Right: (1, 0),
-            pg.QtCore.Qt.Key_Up: (0, -1),
-            pg.QtCore.Qt.Key_Down: (0, 1)
-        }
-        
-        for key, delta in arrow_keys.items():
-            shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence(key), self)
-            shortcut.activated.connect(lambda dx=delta[0], dy=delta[1]: 
-                                      self.projection_roi.move_selected_handle(dx, dy))
+        """Make the window focusable to receive keyboard events"""
+        self.setFocusPolicy(pg.QtCore.Qt.StrongFocus)
     
     def keyPressEvent(self, event):
         """Handle key press events for arrow keys"""
