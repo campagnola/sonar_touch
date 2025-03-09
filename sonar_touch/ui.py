@@ -112,6 +112,10 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         quit_shortcut.setContext(pg.QtCore.Qt.ApplicationShortcut)
         quit_shortcut.activated.connect(self.close)
 
+        # Add delete shortcut for training examples
+        delete_shortcut = pg.QtWidgets.QShortcut(pg.QtGui.QKeySequence("Del"), self)
+        delete_shortcut.activated.connect(self.delete_training_examples)
+
     def handle_audio_data(self):
         if self.audio_queue.qsize() == 0:
             return
