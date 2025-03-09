@@ -33,7 +33,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.timer.timeout.connect(self.handle_audio_data)
         self.timer.start(50)
 
-        self.project = None
+        self.project: SonarTouchProject|None = None
         self.trainer = None
         self.model = None        
         
@@ -66,20 +66,21 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         # Training data tree widget
         self.training_tree = pg.QtWidgets.QTreeWidget()
         self.training_tree.setHeaderLabels(["Training Examples"])
-        self.training_tree.setSelectionMode(pg.QtWidgets.QAbstractItemView.SingleSelection)
+        self.training_tree.setSelectionMode(pg.QtWidgets.QAbstractItemView.MultiSelection)
         self.training_tree.itemSelectionChanged.connect(self.training_example_selected)
         left_layout.addWidget(self.training_tree)
         
-        # Delete button for training examples
-        self.delete_button = pg.QtWidgets.QPushButton("Delete Selected Example")
-        self.delete_button.clicked.connect(self.delete_training_example)
-        left_layout.addWidget(self.delete_button)
+        # editable tapper combo box
+        self.tapper_combo = pg.QtWidgets.QComboBox()
+        left_layout.addWidget(self.tapper_combo)
+        self.tapper_combo.setEditable(True) 
         
         # Training example audio plot
         self.example_plot = pg.PlotWidget()
         self.example_plot.setTitle("Selected Training Example")
         self.example_plot.setLabel('bottom', 'Time', 's')
         self.example_plot.setYRange(-1, 1)
+        self.example_plot.setMaximumHeight(200)
         left_layout.addWidget(self.example_plot)
         
         # Right panel for main content
@@ -152,7 +153,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.trigger_plot.addLine(x=0, pen='w')
 
         if self.trainer is not None and self.trainer.run:
-            self.trainer.trigger_detected(trigger_result)
+            self.trainer.trigger_detected(trigger_result, self.sample_rate, self.tapper_combo.currentText())
         elif self.model is not None:
             self.predict(trigger_result)
             
@@ -177,8 +178,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         if len(models) > 0:
             self.model = self.project.load_model(models[-1])
         
-        # Load training examples
         self.load_training_examples()
+
+        self.tapper_combo.clear()
+        self.tapper_combo.addItems(self.project.list_tappers())
+
 
     def projection_roi_changed(self):
         if self.project is not None:
@@ -222,83 +226,66 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         for entry in self.project.training_index:
             filename = entry['filename']
             item = pg.QtWidgets.QTreeWidgetItem([filename])
-            item.setData(0, pg.QtCore.Qt.UserRole, entry)
+            item.record = entry
             self.training_tree.addTopLevelItem(item)
             
     def training_example_selected(self):
         """Handle selection of a training example in the tree"""
+        if self.project is None:
+            return
         selected_items = self.training_tree.selectedItems()
         if not selected_items:
             self.example_plot.clear()
             return
-            
         item = selected_items[0]
-        metadata = item.data(0, pg.QtCore.Qt.UserRole)
-        filename = metadata['filename']
         
         # Load the training example data
-        example_path = os.path.join(self.project.project_path, filename)
-        try:
-            example_data = np.load(example_path)
-            audio_data = example_data['data']
-            location = example_data['location']
+        example_data = self.project.load_training_example(item.record)
+        location = item.record['location']
+        
+        # Display the audio data
+        self.example_plot.clear()
+        t = np.arange(example_data.shape[1]) / self.sample_rate
+        for i, chan in enumerate(example_data):
+            self.example_plot.plot(t, chan, pen=(i, 4))
             
-            # Display the audio data
-            self.example_plot.clear()
-            t = np.arange(audio_data.shape[1]) / self.sample_rate
-            for i, chan in enumerate(audio_data):
-                self.example_plot.plot(t, chan, pen=(i, 4))
-                
-            # Update the target in the projected view
-            self.projected_view.set_target(location)
+        # Update the target in the projected view
+        self.projected_view.set_target(location)
             
-        except Exception as e:
-            print(f"Error loading training example: {e}")
-            
-    def delete_training_example(self):
+    def delete_training_examples(self):
         """Delete the selected training example after confirmation"""
         selected_items = self.training_tree.selectedItems()
         if not selected_items:
             return
-            
-        item = selected_items[0]
-        metadata = item.data(0, pg.QtCore.Qt.UserRole)
-        filename = metadata['filename']
         
         # Confirm deletion
         confirm = pg.QtWidgets.QMessageBox.question(
             self, 
             "Confirm Deletion",
-            f"Are you sure you want to delete the training example '{filename}'?",
+            f"Delete {len(selected_items)} training examples?",
             pg.QtWidgets.QMessageBox.Yes | pg.QtWidgets.QMessageBox.No
         )
         
         if confirm == pg.QtWidgets.QMessageBox.Yes:
-            try:
-                # Delete the file
-                example_path = os.path.join(self.project.project_path, filename)
-                os.remove(example_path)
-                
-                # Update the training index
-                self.project.training_index = [entry for entry in self.project.training_index 
-                                              if entry['filename'] != filename]
-                # Rewrite the index file
-                with open(self.project.training_index_file, 'w') as f:
-                    for entry in self.project.training_index:
-                        f.write(json.dumps(entry) + '\n')
-                
-                # Remove from tree
+            for item in selected_items:
+                self.delete_training_example(item.record)
                 self.training_tree.takeTopLevelItem(self.training_tree.indexOfTopLevelItem(item))
-                
-                # Clear the example plot
-                self.example_plot.clear()
-                
-            except Exception as e:
-                pg.QtWidgets.QMessageBox.critical(
-                    self,
-                    "Error",
-                    f"Failed to delete training example: {e}"
-                )
+            self.example_plot.clear()
+
+    def delete_training_example(self, entry):
+        """Delete a single training example"""
+        if self.project is None:
+            raise ValueError("No project loaded")
+
+        filename = entry['filename']
+        example_path = os.path.join(self.project.project_path, filename)
+        os.remove(example_path)
+        
+        # Update the training index
+        self.project.training_index.remove(entry)
+
+        # Rewrite the index file
+        self.project.save_training_index()
 
 
 class ProjectionROI(pg.PolyLineROI):

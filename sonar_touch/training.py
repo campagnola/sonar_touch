@@ -1,19 +1,17 @@
-
-
-
 import numpy as np
 
 
 class TrainingDataCollector:
     def __init__(self, ui):
-        self.ui = ui
+        from .ui import MainWindow
+        self.ui: 'MainWindow' = ui
         self.run = False
         self.requested_location = None
 
-    def trigger_detected(self, trigger):
-        if not self.run:
+    def trigger_detected(self, trigger, sample_rate, tapper):
+        if not self.run or self.ui.project is None:
             return
-        self.ui.project.save_training_example(trigger['data'], self.requested_location)
+        self.ui.project.save_training_example(trigger['data'], sample_rate, tapper, self.requested_location)
         self.request_next()
 
     def start(self):

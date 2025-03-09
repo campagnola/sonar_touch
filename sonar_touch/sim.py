@@ -6,7 +6,7 @@ import time
 class SimulatedRecorder:
     def __init__(self):
         self.n_channels = 4
-        self.sample_rate = 44100
+        self.sample_rate = 192000
         self.block_size = 4096
         self.audio_queue = queue.Queue()
 

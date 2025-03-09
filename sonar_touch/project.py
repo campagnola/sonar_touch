@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import torch
 import numpy as np
 import sonar_touch.models
@@ -41,7 +42,7 @@ class SonarTouchProject:
         self.training_index = index
         self.next_example_id = index[-1]['id'] + 1 if len(index) > 0 else 0
 
-    def save_training_example(self, data, location):
+    def save_training_example(self, data, sample_rate, tapper, location):
         """Save a training example to disk, where data is a numpy array (N, n_channels) and location is a tuple (x, y)
         """
         full_training_data_path = os.path.join(self.project_path, self.training_data_path)
@@ -51,18 +52,33 @@ class SonarTouchProject:
         self.next_example_id += 1
         filename = os.path.join(self.training_data_path, f'{next_id:06d}.npy')
         np.save(os.path.join(self.project_path, filename), data)
-        self.training_index.append({'filename': filename, 'location': location, 'id': next_id})
+        self.training_index.append({
+            'filename': filename, 'location': location, 'id': next_id, 
+            'sample_rate': sample_rate, 'tapper': tapper, 'timestamp': time.time()
+        })
         record = json.dumps(self.training_index[-1])
         with open(self.training_index_file, 'a') as f:
             f.write(record + '\n')
 
-    def load_training_data(self):
+    def save_training_index(self):
+        with open(self.training_index_file, 'w') as f:
+            for example in sorted(self.training_index, key=lambda x: x['id']):
+                record = json.dumps(example)
+                f.write(record + '\n')
+
+    def load_all_training_data(self):
         for example in self.training_index:
-            if 'data' in example:
-                continue
+            self.load_training_example(example)
+        return self.training_index
+
+    def load_training_example(self, example):
+        if 'data' not in example:
             filename = os.path.join(self.project_path, example['filename'])
             example['data'] = np.load(filename)
-        return self.training_index
+        return example['data']
+
+    def list_tappers(self):
+        return sorted(set([example['tapper'] for example in self.training_index]))
 
     def list_models(self):
         model_fies = [f for f in os.listdir(self.project_path) if f.endswith('.pth')]
