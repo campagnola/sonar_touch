@@ -61,10 +61,12 @@ class SonarTouchProject:
             f.write(record + '\n')
 
     def save_training_index(self):
+        index = ''
+        for example in sorted(self.training_index, key=lambda x: x['id']):
+            record = json.dumps(example)
+            index = index + record + '\n'
         with open(self.training_index_file, 'w') as f:
-            for example in sorted(self.training_index, key=lambda x: x['id']):
-                record = json.dumps(example)
-                f.write(record + '\n')
+            f.write(index)
 
     def load_all_training_data(self):
         for example in self.training_index:

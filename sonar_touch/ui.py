@@ -3,6 +3,7 @@ import os
 import json
 import numpy as np
 import pyqtgraph as pg
+import pyqtgraph.console
 import torch
 import coorx
 
@@ -20,14 +21,15 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.audio_queue = audio_queue
         self.sample_rate = sample_rate
         self.block_size = block_size
-        self.init_ui()
 
         self.last_trigger_time = 0
-        self.trigger_threshold = 0.01
+        self.trigger_threshold = 0.04
         self.refractory_period = 0.2
         self.trigger_padding = (0.01, 0.03)
         self.full_buffer_length = 2.0
         self.buffer = RollingBuffer(int(self.full_buffer_length * self.sample_rate / self.block_size) + 1)
+
+        self.init_ui()
 
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.handle_audio_data)
@@ -48,6 +50,10 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.train_action = file_menu.addAction("&Start Training")
         self.train_action.triggered.connect(self.start_training)
 
+        self.console = pg.console.ConsoleWidget(namespace={'win': self})
+        self.console_action = file_menu.addAction("&Console")
+        self.console_action.triggered.connect(self.console.show)
+
         # Main layout with splitter
         main_layout = pg.QtWidgets.QHBoxLayout()
         self.setCentralWidget(pg.QtWidgets.QWidget())
@@ -59,21 +65,27 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         
         # Left panel for training data browser
         self.left_panel = pg.QtWidgets.QWidget()
-        left_layout = pg.QtWidgets.QVBoxLayout()
+        left_layout = pg.QtWidgets.QGridLayout()
         self.left_panel.setLayout(left_layout)
         self.splitter.addWidget(self.left_panel)
         
         # Training data tree widget
         self.training_tree = pg.QtWidgets.QTreeWidget()
-        self.training_tree.setHeaderLabels(["Training Examples"])
+        self.training_tree.setHeaderLabels(["ID", "Tapper", "Location", "Date", "File"])
         self.training_tree.setSelectionMode(pg.QtWidgets.QAbstractItemView.ContiguousSelection)
         self.training_tree.itemSelectionChanged.connect(self.training_example_selected)
-        left_layout.addWidget(self.training_tree)
+        left_layout.addWidget(self.training_tree, 0, 0, 1, 2)
         
         # editable tapper combo box
         self.tapper_combo = pg.QtWidgets.QComboBox()
-        left_layout.addWidget(self.tapper_combo)
-        self.tapper_combo.setEditable(True) 
+        left_layout.addWidget(self.tapper_combo, left_layout.rowCount(), 0, 1, 2)
+        self.tapper_combo.setEditable(True)
+
+        # trigger threshold
+        self.trigger_threshold_spin = pg.SpinBox(value=self.trigger_threshold, minStep=0.001, dec=True, compactHeight=False)
+        self.trigger_threshold_spin.sigValueChanged.connect(self.trigger_threshold_spin_changed)
+        left_layout.addWidget(pg.QtWidgets.QLabel("Trigger Threshold"), left_layout.rowCount(), 0, 1, 1)
+        left_layout.addWidget(self.trigger_threshold_spin, left_layout.rowCount() - 1, 1, 1, 1)
         
         # Training example audio plot
         self.example_plot = pg.PlotWidget()
@@ -81,7 +93,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.example_plot.setLabel('bottom', 'Time', 's')
         self.example_plot.setYRange(-1, 1)
         self.example_plot.setMaximumHeight(200)
-        left_layout.addWidget(self.example_plot)
+        left_layout.addWidget(self.example_plot, left_layout.rowCount(), 0, 1, 2)
         
         # Right panel for main content
         self.right_panel = pg.QtWidgets.QWidget()
@@ -166,6 +178,9 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.projected_view.close()
         return super().close()
 
+    def trigger_threshold_spin_changed(self):
+        self.trigger_threshold = self.trigger_threshold_spin.value()
+
     def load_project_triggered(self):
         folder = pg.QtWidgets.QFileDialog.getExistingDirectory(self, "Select Project Folder")
         if folder == "":
@@ -228,8 +243,13 @@ class MainWindow(pg.QtWidgets.QMainWindow):
             
         # Add each example to the tree
         for entry in self.project.training_index:
-            filename = entry['filename']
-            item = pg.QtWidgets.QTreeWidgetItem([filename])
+            item = pg.QtWidgets.QTreeWidgetItem([
+                str(entry['id']),
+                entry['tapper'],
+                f"({entry['location'][0]:.1f}, {entry['location'][1]:.1f})",
+                time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(entry['timestamp'])),
+                entry['filename'],
+            ])
             item.record = entry
             self.training_tree.addTopLevelItem(item)
             
@@ -297,6 +317,8 @@ class ProjectionROI(pg.PolyLineROI):
         pos = [[0, 0], [1920, 0], [1920, 1280], [0, 1280]]
         pg.PolyLineROI.__init__(self, pos, closed=True)
         self.selected_handle = None
+        for h in self.handles:
+            h['item'].hoverPen = pg.mkPen((255, 255, 0), width=3)
         
     def transform(self):
         pts = self.saveState()['points']
@@ -317,12 +339,14 @@ class ProjectionROI(pg.PolyLineROI):
         """Select a handle by index (0-3) and update its appearance"""
         # Reset all handles to default appearance
         for h in self.handles:
-            h['item'].setPen(pg.mkPen(255, 255, 255))
+            h['item'].currentPen = h['item'].pen
+            h['item'].update()
             
         # Set the selected handle
         if 0 <= index < len(self.handles):
             self.selected_handle = self.handles[index]['item']
-            self.selected_handle.setPen(pg.mkPen(255, 0, 0, width=2))
+            self.selected_handle.currentPen = self.selected_handle.hoverPen
+            self.selected_handle.update()
         else:
             self.selected_handle = None
             
