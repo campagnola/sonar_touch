@@ -1,8 +1,32 @@
 import os
+import numpy as np
 from astroquery.gaia import Gaia
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astroquery.simbad import Simbad
+from .transforms import SphericalTransform
+
+
+class StarCatalog:
+    def __init__(self, data):
+        deg_to_rad = np.pi / 180.0
+        mas_to_rad = deg_to_rad / 3600 / 1000
+
+        positions = np.zeros((len(data), 3))
+        positions[:, 0] = -data['ra_degrees_j2000'] * deg_to_rad
+        positions[:, 1] = data['dec_degrees_j2000'] * deg_to_rad
+        positions[:, 2] = 1 / data['parallax_mas'] * 1000.0
+        tr = SphericalTransform()
+        self.positions = tr.imap(positions)
+
+        positions[:, 0] += data['ra_mas_per_year'] * mas_to_rad
+        positions[:, 1] += data['dec_mas_per_year'] * mas_to_rad
+        self.vectors = tr.imap(positions) - self.positions
+
+        self.magnitudes = np.asarray(data['magnitude'])
+        self.names = np.asarray(data['name'])
+        self.data = data
+
 
 
 def load_bigsky():

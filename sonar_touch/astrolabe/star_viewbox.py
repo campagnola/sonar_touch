@@ -3,14 +3,14 @@ import numpy as np
 import pyqtgraph as pg
 import coorx
 from .transforms import SphericalTransform, LambertAzimuthalEqualAreaTransform
-from .color import btvt_to_rgb
+from .star_vis import StarVisualization
 
 
 class StarViewBox(pg.ViewBox):
-    def __init__(self, data):
+    def __init__(self, star_catalog):
         pg.ViewBox.__init__(self)
         self.setAspectLocked()
-        self.data = data
+        self.stars = star_catalog
 
         self.speed = 25000  # 25,000 years per second
         self.slew_time = 0.3  # 63% after 0.3 second
@@ -20,23 +20,6 @@ class StarViewBox(pg.ViewBox):
         self.target_time = None
         self.start_time = -200000
         self.stop_time = 200000
-
-        deg_to_rad = np.pi / 180.0
-        mas_to_rad = deg_to_rad / 3600 / 1000
-
-        positions = np.zeros((len(data), 3))
-        positions[:, 0] = -data['ra_degrees_j2000'] * deg_to_rad
-        positions[:, 1] = data['dec_degrees_j2000'] * deg_to_rad
-        positions[:, 2] = 1 / data['parallax_mas'] * 1000.0
-        tr = SphericalTransform()
-        self.positions = tr.imap(positions)
-
-        positions[:, 0] += data['ra_mas_per_year'] * mas_to_rad
-        positions[:, 1] += data['dec_mas_per_year'] * mas_to_rad
-        self.vectors = tr.imap(positions) - self.positions
-
-        self.magnitudes = np.asarray(data['magnitude'])
-        self.names = np.asarray(data['name'])
 
         self.angle = [0, 0]
         self.rotation_tr = coorx.AffineTransform(dims=(3, 3))
@@ -53,41 +36,14 @@ class StarViewBox(pg.ViewBox):
 
         self.update_positions()
 
-        magnitudes = self.magnitudes
-        brightness = 15 * ((5.5 - magnitudes) / 5.5)**2
-        self.sizes = np.clip(brightness, 1, np.inf)
-        self.alphas = 255 * np.clip(brightness, 0.0, 1.0)
-
-        self.brushes = []
-        for i, (index, row) in enumerate(data.iterrows()):
-            bv = row['bv']
-            if np.isnan(bv):
-                color = (255, 255, 255)
-            else:
-                # B-V = 0.850 * (BT-VT)
-                color = np.array(btvt_to_rgb(bv))
-                mix = 0.5
-                color = (mix * color + (1 - mix) * 255)
-            alpha = self.alphas[i]
-            self.brushes.append(pg.mkBrush(color[0], color[1], color[2], alpha))
-
-        self.scatter = pg.ScatterPlotItem(
-            pos=self.mapped_pos,
-            size=self.sizes,
-            pen=None,
-            brush=self.brushes,
-            symbol='o',
-            pxMode=True,
-            data=np.arange(len(self.data)),
-        )
-        self.addItem(self.scatter)
-
-        self.scatter.sigClicked.connect(self.scatter_clicked)
+        self.star_item = StarVisualization(self.stars, self.mapped_pos)
+        self.addItem(self.star_item.scatter)
+        self.star_item.scatter.sigClicked.connect(self.scatter_clicked)
 
         self.traveler_lines = pg.PlotCurveItem(pen=(255, 255, 255, 70))
         self.addItem(self.traveler_lines)
 
-        self.update_stars()
+        self.update_scene()
 
         self.setXRange(-2, 2)
         self.setYRange(-2, 2)
@@ -107,22 +63,18 @@ class StarViewBox(pg.ViewBox):
         delta = e.lastScenePos() - e.scenePos()
         self.rotation_tr.rotate(delta.y() * 0.3, axis=(0, 1, 0))
         self.rotation_tr.rotate(-delta.x() * 0.3, axis=(1, 0, 0))
-        self.update_stars()
+        self.update_scene()
 
     def update_positions(self):
-        pos = self.positions + self.vectors * self.time
+        """Generate mapped_pos correcting for time, rotation, and projection"""
+        pos = self.stars.positions + self.stars.vectors * self.time
         self.mapped_pos = self.projection.map(pos)[..., :2]
 
-    def update_stars(self):
+    def update_scene(self):
         with np.errstate(divide='ignore', invalid='ignore'):
             self.update_positions()
+            self.star_item.update_stars(pos=self.mapped_pos)
             self.update_lines()
-            self.scatter.setData(
-                pos=self.mapped_pos,
-                size=self.sizes,
-                brush=self.brushes,
-                data=np.arange(len(self.data)),
-            )
 
     def update_lines(self):
         stars_to_draw = [
@@ -132,11 +84,11 @@ class StarViewBox(pg.ViewBox):
         verts = []
         connect = []
         for star in stars_to_draw:
-            ind = np.argwhere(self.names == star)[0,0]
+            ind = np.argwhere(self.stars.names == star)[0,0]
             pos = self.mapped_pos[ind]
-            vec = self.vectors[ind]
+            vec = self.stars.vectors[ind]
             npts = 1000 * np.clip(int(np.linalg.norm(vec)), 2, 100)
-            pos = self.positions[ind:ind+1, :] + self.vectors[ind:ind+1, :] * np.linspace(self.start_time, self.stop_time, npts)[:, np.newaxis]
+            pos = self.stars.positions[ind:ind+1, :] + self.stars.vectors[ind:ind+1, :] * np.linspace(self.start_time, self.stop_time, npts)[:, np.newaxis]
             verts.append(pos)
             connect.append(np.ones(pos.shape[0], dtype=bool))
             connect[-1][-1] = False
@@ -190,7 +142,7 @@ class StarViewBox(pg.ViewBox):
 
     def set_time(self, time):
         self.time = time
-        self.update_stars()
+        self.update_scene()
 
     def pause(self, pause=True):
         self.paused = pause
@@ -201,7 +153,7 @@ class StarViewBox(pg.ViewBox):
             return
         print(f"Clicked on {len(points)} points")
         for pt in points:
-            rec = self.data.iloc[pt.data()]
+            rec = self.stars.data.iloc[pt.data()]
             print(rec['name'])
 
     def keyPressEvent(self, ev):

@@ -1,5 +1,5 @@
 import pyqtgraph as pg
-from sonar_touch.astrolabe.stars import load_bigsky
+from sonar_touch.astrolabe.stars import load_bigsky, StarCatalog
 from sonar_touch.astrolabe.star_viewbox import StarViewBox
 
 
@@ -15,12 +15,10 @@ if __name__ == '__main__':
     w.resize(800, 600)
 
 
-    stars = load_bigsky()
+    star_data = load_bigsky()
+    catalog = StarCatalog(star_data)
 
-
-    view = StarViewBox(
-        data=stars,
-    )
+    view = StarViewBox(catalog)
     w.addItem(view)
     w.show()
 
