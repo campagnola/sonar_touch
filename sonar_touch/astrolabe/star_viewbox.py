@@ -2,8 +2,9 @@ import time
 import numpy as np
 import pyqtgraph as pg
 import coorx
+from sonar_touch.astrolabe.grid import AzimuthalGrid
 from .transforms import SphericalTransform, LambertAzimuthalEqualAreaTransform
-from .star_vis import StarVisualization
+from .star_vis import StarTracks, StarVisualization
 
 
 class StarViewBox(pg.ViewBox):
@@ -34,14 +35,25 @@ class StarViewBox(pg.ViewBox):
             LambertAzimuthalEqualAreaTransform(),
         ])
 
-        self.update_positions()
-
-        self.star_item = StarVisualization(self.stars, self.mapped_pos)
+        self.star_item = StarVisualization(self.stars, self.projection)
         self.addItem(self.star_item.scatter)
         self.star_item.scatter.sigClicked.connect(self.scatter_clicked)
 
-        self.traveler_lines = pg.PlotCurveItem(pen=(255, 255, 255, 70))
-        self.addItem(self.traveler_lines)
+        self.travelers = StarTracks(
+            self.stars,
+            pen=(255, 255, 255, 80), 
+            time_range=(self.start_time, self.stop_time),
+            stars_to_draw=[
+                'Vega', 'Sirius', 'Capella', 'Arcturus', 'Altair', 'Aljanah', 'Rigil Kentaurus', 'Toliman',
+                'Procyon', 'Pollux', 'Aldebaran'
+            ],
+        )
+        self.addItem(self.travelers)
+        self.travelers.setZValue(-1)
+
+        self.grid = AzimuthalGrid(pen=(255, 255, 255, 50))
+        self.grid.setZValue(-2)
+        self.addItem(self.grid)
 
         self.update_scene()
 
@@ -65,63 +77,11 @@ class StarViewBox(pg.ViewBox):
         self.rotation_tr.rotate(-delta.x() * 0.3, axis=(1, 0, 0))
         self.update_scene()
 
-    def update_positions(self):
-        """Generate mapped_pos correcting for time, rotation, and projection"""
-        pos = self.stars.positions + self.stars.vectors * self.time
-        self.mapped_pos = self.projection.map(pos)[..., :2]
-
     def update_scene(self):
         with np.errstate(divide='ignore', invalid='ignore'):
-            self.update_positions()
-            self.star_item.update_stars(pos=self.mapped_pos)
-            self.update_lines()
-
-    def update_lines(self):
-        stars_to_draw = [
-            'Vega', 'Sirius', 'Capella', 'Arcturus', 'Altair', 'Aljanah', 'Rigil Kentaurus', 'Toliman',
-            'Procyon', 'Pollux',
-        ]
-        verts = []
-        connect = []
-        for star in stars_to_draw:
-            ind = np.argwhere(self.stars.names == star)[0,0]
-            pos = self.mapped_pos[ind]
-            vec = self.stars.vectors[ind]
-            npts = 1000 * np.clip(int(np.linalg.norm(vec)), 2, 100)
-            pos = self.stars.positions[ind:ind+1, :] + self.stars.vectors[ind:ind+1, :] * np.linspace(self.start_time, self.stop_time, npts)[:, np.newaxis]
-            verts.append(pos)
-            connect.append(np.ones(pos.shape[0], dtype=bool))
-            connect[-1][-1] = False
-
-        # iso-declination lines
-        for dec in range(-90, 90, 30):
-            dec = dec * np.pi / 180
-            npts = 512
-            pos = np.empty((npts, 3))
-            pos[:, 0] = np.linspace(0, 2*np.pi, npts)
-            pos[:, 1] = dec
-            pos[:, 2] = 100
-            pos = SphericalTransform().imap(pos)
-            verts.append(pos)
-            connect.append(np.ones(pos.shape[0], dtype=bool))
-            connect[-1][-1] = False
-
-        # iso-ascension lines
-        for ra in range(0, 180, 30):
-            ra = ra * np.pi / 180
-            npts = 512
-            pos = np.empty((npts, 3))
-            pos[:, 0] = ra
-            pos[:, 1] = np.linspace(0, 2*np.pi, npts)
-            pos[:, 2] = 100
-            pos = SphericalTransform().imap(pos)
-            verts.append(pos)
-            connect.append(np.ones(pos.shape[0], dtype=bool))
-            connect[-1][-1] = False
-
-        verts = self.projection.map(np.concatenate(verts))
-        connect = np.concatenate(connect)
-        self.traveler_lines.setData(verts[:,0], verts[:,1], connect=connect)
+            self.star_item.update_transform(self.projection)
+            self.travelers.update_transform(self.projection)
+            self.grid.update_transform(self.projection)
 
     def update_time(self):
         now = time.perf_counter()
@@ -142,6 +102,7 @@ class StarViewBox(pg.ViewBox):
 
     def set_time(self, time):
         self.time = time
+        self.star_item.set_time(self.time)
         self.update_scene()
 
     def pause(self, pause=True):
@@ -151,7 +112,6 @@ class StarViewBox(pg.ViewBox):
     def scatter_clicked(self, item, points):
         if len(points) == 0:
             return
-        print(f"Clicked on {len(points)} points")
         for pt in points:
             rec = self.stars.data.iloc[pt.data()]
             print(rec['name'])
