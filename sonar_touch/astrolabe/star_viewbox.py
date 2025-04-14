@@ -3,6 +3,7 @@ import numpy as np
 import pyqtgraph as pg
 import coorx
 from sonar_touch.astrolabe.grid import AzimuthalGrid
+from sonar_touch.astrolabe.timeline import Timeline
 from .transforms import SphericalTransform, LambertAzimuthalEqualAreaTransform
 from .star_vis import StarTracks, StarVisualization
 
@@ -55,6 +56,13 @@ class StarViewBox(pg.ViewBox):
         self.grid.setZValue(-2)
         self.addItem(self.grid)
 
+        self.timeline = Timeline(
+            endpoints=[[50, 50], [400, 50]], 
+            time_range=(self.start_time, self.stop_time), 
+            pen=pg.mkPen((255, 255, 255, 128), width=2),
+        )
+        self.timeline.setParentItem(self)
+
         self.update_scene()
 
         self.setXRange(-2, 2)
@@ -103,6 +111,7 @@ class StarViewBox(pg.ViewBox):
     def set_time(self, time):
         self.time = time
         self.star_item.set_time(self.time)
+        self.timeline.set_time(self.time)
         self.update_scene()
 
     def pause(self, pause=True):
