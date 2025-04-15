@@ -12,10 +12,7 @@ class StarVisualization:
         self.mapped_pos = None
         self.zoom = 1
 
-        magnitudes = self.stars.magnitudes
-        # brightness = ((5.5 - magnitudes) / 5.5)**2
         self._sizes = None
-        # self.alphas = 255 * np.clip(brightness, 0.0, 1.0)
         self._brushes = None
 
         self.scatter = pg.ScatterPlotItem(
@@ -32,9 +29,12 @@ class StarVisualization:
     def sizes(self):
         if self._sizes is not None:
             return self._sizes
-        sizes = np.clip(15 * self.zoom * ((5.5 - self.stars.magnitudes) / 5.5)**2, 0, 15)
+        normalized_magnitude = (6.5 - self.stars.magnitudes) / 6.5
+        exponent = 3  # larger exponent = more contrast between small and large stars
+        sizes = np.clip(15 * self.zoom * normalized_magnitude**exponent, 0, 15)
         # quantize sizes to help with scatter plot performance
         self._sizes = np.exp((np.log(sizes)*5).astype(np.int32)/5)
+        # self._sizes[self._sizes < 1] = 0
         return self._sizes
 
     @property

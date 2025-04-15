@@ -52,7 +52,7 @@ def load_bigsky():
         os.remove(csv_file+'.gz')
     print("Loading star catalog")        
     star_df = pandas.read_csv(csv_file)
-    star_df = star_df[star_df['magnitude'] < 5.5]
+    star_df = star_df[star_df['magnitude'] < 6.5]
     return star_df
 
 
