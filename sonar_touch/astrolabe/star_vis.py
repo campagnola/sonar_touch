@@ -32,26 +32,38 @@ class StarVisualization:
     def sizes(self):
         if self._sizes is not None:
             return self._sizes
-        self._sizes = np.clip(15 * self.zoom * ((5.5 - self.stars.magnitudes) / 5.5)**2, 0, 15)
+        sizes = np.clip(15 * self.zoom * ((5.5 - self.stars.magnitudes) / 5.5)**2, 0, 15)
+        # quantize sizes to help with scatter plot performance
+        self._sizes = np.exp((np.log(sizes)*5).astype(np.int32)/5)
         return self._sizes
 
     @property
     def brushes(self):
         if self._brushes is not None:
             return self._brushes
-        
+
+        # how much bv color to mix with white
+        mix = 0.5
+        # make a limited set of brushes to assist with scatter plot performance
+        bv_mean = self.stars.data['bv'].mean()
+        bv_std = self.stars.data['bv'].std()
+        bv_brushes = {np.nan: pg.mkBrush(255, 255, 255)}
+        def get_bv_brush(bv):
+            if np.isnan(bv):
+                return bv_brushes[np.nan]
+            else:
+                # B-V = 0.850 * (BT-VT)
+                # quantize bv
+                bv = int((bv - bv_mean) / bv_std) * bv_std + bv_mean                
+                if bv not in bv_brushes:
+                    color = np.array(btvt_to_rgb(bv))
+                    bv_brushes[bv] = pg.mkBrush(mix * color + (1 - mix) * 255)
+                return bv_brushes[bv]
+
         self._brushes = []
         for i, (index, row) in enumerate(self.stars.data.iterrows()):
             bv = row['bv']
-            if np.isnan(bv):
-                color = (255, 255, 255)
-            else:
-                # B-V = 0.850 * (BT-VT)
-                color = np.array(btvt_to_rgb(bv))
-                mix = 0.5
-                color = (mix * color + (1 - mix) * 255)
-            alpha = 255 #self.alphas[i]
-            self._brushes.append(pg.mkBrush(color[0], color[1], color[2], alpha))
+            self._brushes.append(get_bv_brush(bv))
         return self._brushes
 
     def set_zoom(self, zoom):
