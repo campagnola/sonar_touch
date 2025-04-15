@@ -14,7 +14,8 @@ class StarViewBox(pg.ViewBox):
         self.setAspectLocked()
         self.stars = star_catalog
 
-        self.speed = 25000  # 25,000 years per second
+        self.play_speed = 25000  # 25,000 years per second
+        self.speed = self.play_speed
         self.slew_time = 0.3  # 63% after 0.3 second
         self.last_update = time.perf_counter()
         self.paused = False
@@ -22,6 +23,8 @@ class StarViewBox(pg.ViewBox):
         self.target_time = None
         self.start_time = -200000
         self.stop_time = 200000
+
+        self.visible_radius = 2
 
         self.angle = [0, 0]
         self.rotation_tr = coorx.AffineTransform(dims=(3, 3))
@@ -65,12 +68,24 @@ class StarViewBox(pg.ViewBox):
 
         self.update_scene()
 
-        self.setXRange(-2, 2)
-        self.setYRange(-2, 2)
+        self.setXRange(-self.visible_radius, self.visible_radius)
+        self.setYRange(-self.visible_radius, self.visible_radius)
 
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.update_time)
         self.timer.start(16)
+
+    def zoom(self, frac):
+        self.visible_radius *= frac
+        self.setXRange(-self.visible_radius, self.visible_radius)
+        self.setYRange(-self.visible_radius, self.visible_radius)
+
+    def wheelEvent(self, ev):
+        ev.accept()
+        if ev.delta() > 0:
+            self.zoom(1/1.1)
+        else:
+            self.zoom(1.1)
 
     def mouseDragEvent(self, ev, axis=None):
         ev.accept()
@@ -128,17 +143,38 @@ class StarViewBox(pg.ViewBox):
     def keyPressEvent(self, ev):
         ev.accept()
         if ev.text() == '-':
-            self.speed *= 0.8
+            self.play_speed *= 0.8
         elif ev.text() in ['+', '=']:
-            self.speed /= 0.8
+            self.play_speed /= 0.8
         elif ev.text() == ' ':
+            self.speed = self.play_speed
             self.pause(not self.paused)
-        elif ev.text() in '12345':
+        elif ev.text() != '' and ev.text() in '12345':
             t = (float(ev.text()) - 1) / 4
             t = self.start_time + t * (self.stop_time - self.start_time)
             self.slew_to_time(t)
+        # arrow keys
+        elif ev.key() == pg.QtCore.Qt.Key_Left:
+            self.speed = -10000
+            self.pause(False)
+        elif ev.key() == pg.QtCore.Qt.Key_Right:
+            self.speed = 10000
+            self.pause(False)
+        elif ev.key() == pg.QtCore.Qt.Key_Up:
+            self.speed = -50000
+            self.pause(False)
+        elif ev.key() == pg.QtCore.Qt.Key_Down:
+            self.speed = 50000
+            self.pause(False)
         else:
             ev.ignore()
+
+    def keyReleaseEvent(self, event):
+        event.accept()
+        if event.key() in (pg.QtCore.Qt.Key_Left, pg.QtCore.Qt.Key_Right, pg.QtCore.Qt.Key_Up, pg.QtCore.Qt.Key_Down):
+            self.pause(True)
+        else:
+            event.ignore()
 
     def slew_to_time(self, time):
         self.paused = True

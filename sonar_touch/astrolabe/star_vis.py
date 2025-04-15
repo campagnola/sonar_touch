@@ -46,6 +46,7 @@ class StarVisualization:
 
     def update_transform(self, transform):
         self.transform = transform
+        self.mapped_pos = None
         self.update_stars()
 
     def get_mapped_pos(self):
