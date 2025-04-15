@@ -2,6 +2,29 @@ import numpy as np
 import pyqtgraph as pg
 from .color import btvt_to_rgb
 
+# make some custom scatter plot symbols for stars
+from pyqtgraph.graphicsItems.ScatterPlotItem import Symbols
+
+def star_scale(i):
+    return 1.3**(i - 1)
+
+for i in range(1, 6):
+    path = pg.QtGui.QPainterPath()
+    npts = 32  # must be multiple of 4
+    for j in range(npts):
+        th = j * 2*np.pi/npts
+        x,y = 0.5 * np.cos(th), 0.5 * np.sin(th)
+        if j not in (0, npts//4, npts//2, 3*npts//4):
+            x /= star_scale(i)
+            y /= star_scale(i)
+        if j == 0:
+            path.moveTo(x, y)
+        else:
+            path.lineTo(x, y)
+    # path.closeSubpath()
+
+    Symbols[str(i)] = path
+
 
 class StarVisualization:
     def __init__(self, stars, transform):
@@ -13,6 +36,7 @@ class StarVisualization:
         self.zoom = 1
 
         self._sizes = None
+        self._symbols = None
         self._brushes = None
 
         self.scatter = pg.ScatterPlotItem(
@@ -20,7 +44,7 @@ class StarVisualization:
             size=self.sizes,
             brush=self.brushes,
             pen=None,
-            symbol='o',
+            symbol=self.symbols,
             pxMode=True,
             data=np.arange(len(self.stars.data)),
         )
@@ -31,11 +55,28 @@ class StarVisualization:
             return self._sizes
         normalized_magnitude = (6.5 - self.stars.magnitudes) / 6.5
         exponent = 3  # larger exponent = more contrast between small and large stars
-        sizes = np.clip(15 * self.zoom * normalized_magnitude**exponent, 0, 15)
+        scale = 10  # scale factor for all stars
+        max_size = 12  # largest circular star before switching to spiny star shapes
+
+        sizes = scale * self.zoom * normalized_magnitude**exponent
+        clipped_sizes = np.clip(sizes, 0, max_size)  # max size before we use different symbols rather than size
         # quantize sizes to help with scatter plot performance
-        self._sizes = np.exp((np.log(sizes)*5).astype(np.int32)/5)
-        # self._sizes[self._sizes < 1] = 0
+        quantized_sizes = np.exp((np.log(clipped_sizes)*5).astype(np.int32)/5)
+        clip_ratio = sizes / quantized_sizes
+        star_symbol_num = np.clip(np.log2(clip_ratio*4).astype(int), 1, 5)
+        
+        # larger star spines for stars larger than max
+        self._sizes = quantized_sizes * star_scale(star_symbol_num)
+        self._symbols = star_symbol_num.astype('U1')
+
         return self._sizes
+
+    @property
+    def symbols(self):
+        if self._symbols is None:
+            self.sizes  # forces calculation of symbols
+        return self._symbols
+
 
     @property
     def brushes(self):
@@ -43,7 +84,7 @@ class StarVisualization:
             return self._brushes
 
         # how much bv color to mix with white
-        mix = 0.5
+        mix = 0.7
         # make a limited set of brushes to assist with scatter plot performance
         bv_mean = self.stars.data['bv'].mean()
         bv_std = self.stars.data['bv'].std()
@@ -93,6 +134,7 @@ class StarVisualization:
         args = {
             'pos': self.get_mapped_pos(),
             'size': self.sizes,
+            'symbol': self.symbols,
             'brush': self.brushes,
             'data': np.arange(len(self.stars.data)),
         }

@@ -50,7 +50,7 @@ class StarViewBox(pg.ViewBox):
             time_range=(self.start_time, self.stop_time),
             stars_to_draw=[
                 'Vega', 'Sirius', 'Capella', 'Arcturus', 'Altair', 'Aljanah', 'Rigil Kentaurus', 'Toliman',
-                'Procyon', 'Pollux', 'Aldebaran'
+                'Procyon', 'Pollux', 'Aldebaran', 'Tabit',
             ],
         )
         self.addItem(self.travelers)
@@ -83,9 +83,9 @@ class StarViewBox(pg.ViewBox):
     def wheelEvent(self, event, axis=None):
         event.accept()
         if event.delta() > 0:
-            self.set_zoom(self.zoom*1.1)
+            self.set_zoom(self.zoom*1.3)
         else:
-            self.set_zoom(self.zoom/1.1)
+            self.set_zoom(self.zoom/1.3)
 
     def mouseDragEvent(self, ev, axis=None):
         ev.accept()
@@ -96,8 +96,8 @@ class StarViewBox(pg.ViewBox):
         if ev.isFinish():
             return
         delta = e.lastScenePos() - e.scenePos()
-        self.rotation_tr.rotate(delta.y() * 0.3, axis=(0, 1, 0))
-        self.rotation_tr.rotate(-delta.x() * 0.3, axis=(1, 0, 0))
+        self.rotation_tr.rotate(delta.y() * 0.3 / self.zoom, axis=(0, 1, 0))
+        self.rotation_tr.rotate(-delta.x() * 0.3 / self.zoom, axis=(1, 0, 0))
         self.update_scene()
 
     def update_scene(self):
@@ -116,6 +116,9 @@ class StarViewBox(pg.ViewBox):
                 # calculate slew amount for this dt
                 slew_amount = dt / self.slew_time
                 t = slew_amount * self.target_time + (1 - slew_amount) * self.time
+                if np.abs(t - self.target_time) < 10:
+                    t = self.target_time
+                    self.target_time = None
                 self.set_time(t)
         else:
             t = self.time + self.speed * dt
