@@ -16,11 +16,14 @@ app = pg.mkQApp()
 
 class MainWindow(pg.QtWidgets.QMainWindow):
 
+    detected_tap = pg.QtCore.pyqtSignal(object)  # location of tap
+
     def __init__(self, audio_queue, sample_rate, block_size):
         super().__init__()
         self.audio_queue = audio_queue
         self.sample_rate = sample_rate
         self.block_size = block_size
+        self.plotting_enabled = True
 
         self.last_trigger_time = 0
         self.trigger_threshold = 0.04
@@ -38,7 +41,11 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.project: SonarTouchProject|None = None
         self.trainer = None
         self.model = None        
-        
+
+    def enable_plotting(self, enable):
+        """Enable or disable plotting"""
+        self.plotting_enabled = enable
+
     def init_ui(self):
         self.setWindowTitle("Sonar Touch")
 
@@ -137,11 +144,12 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         sample_index, data = self.buffer.get_data()
 
         # plot all data in the buffer
-        self.plot.clear()
-        t = np.arange(data.shape[1]) / self.sample_rate
-        for i,chan in enumerate(data):
-            self.plot.plot(t, chan, pen=(i, 4))
-        self.plot.addLine(y=self.trigger_threshold, pen='w')
+        if self.plotting_enabled:
+            self.plot.clear()
+            t = np.arange(data.shape[1]) / self.sample_rate
+            for i,chan in enumerate(data):
+                self.plot.plot(t, chan, pen=(i, 4))
+            self.plot.addLine(y=self.trigger_threshold, pen='w')
 
         now = time.perf_counter()
         if now - self.last_trigger_time < 0.5:
@@ -161,12 +169,13 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         trigger_index = trigger_result['index']
         self.last_trigger_time = now
 
-        self.trigger_plot.clear()
-        t = (np.arange(plot_data.shape[1]) - trigger_index) / self.sample_rate
-        for i,chan in enumerate(plot_data):
-            self.trigger_plot.plot(t, chan, pen=(i, 4))
-        self.trigger_plot.addLine(y=self.trigger_threshold, pen='w')
-        self.trigger_plot.addLine(x=0, pen='w')
+        if self.plotting_enabled:
+            self.trigger_plot.clear()
+            t = (np.arange(plot_data.shape[1]) - trigger_index) / self.sample_rate
+            for i,chan in enumerate(plot_data):
+                self.trigger_plot.plot(t, chan, pen=(i, 4))
+            self.trigger_plot.addLine(y=self.trigger_threshold, pen='w')
+            self.trigger_plot.addLine(x=0, pen='w')
 
         if self.trainer is not None and self.trainer.run:
             self.trainer.trigger_detected(trigger_result, self.sample_rate, self.tapper_combo.currentText())
@@ -229,6 +238,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         tensor = torch.tensor(data.reshape(1, 4, -1), dtype=torch.float32).to(self.model.device)
         location = self.model(tensor).detach().cpu().numpy()[0]
         self.projected_view.set_target(location)
+        self.detected_tap.emit(location)
         
     def load_training_examples(self):
         """Load all training examples from the project folder and populate the tree widget"""

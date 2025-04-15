@@ -19,6 +19,8 @@ if __name__ == "__main__":
     # project flag requires a filename argument
     parser.add_argument("--project", type=str, help="Load a project file")
     parser.add_argument("--train", action="store_true", default=False, help="Enter training mode on startup")
+    parser.add_argument("--astrolabe", action="store_true", default=False, help="Use astrolabe mode")
+    parser.add_argument("--no-plot", action="store_true", default=False, help="Disable plotting")
     args = parser.parse_args()
 
 
@@ -32,11 +34,19 @@ if __name__ == "__main__":
     # Start the main application
     window = MainWindow(recorder.audio_queue, recorder.sample_rate, recorder.block_size)
 
+    if args.no_plot:
+        window.enable_plotting(False)
+
     if args.project:
         window.load_project(args.project)
 
     if args.train:
         window.start_training()
+
+    if args.astrolabe:
+        from sonar_touch.astrolabe.sonar_connect import SonarAstrolabe
+        astrolabe = SonarAstrolabe()
+        window.detected_tap.connect(astrolabe.on_tap)
 
     if sys.flags.interactive == 0:
         app.exec_()
