@@ -1,3 +1,4 @@
+import re
 import time
 import numpy as np
 import pyqtgraph as pg
@@ -6,6 +7,7 @@ from sonar_touch.astrolabe.grid import AzimuthalGrid
 from sonar_touch.astrolabe.timeline import Timeline
 from .transforms import SphericalTransform, LambertAzimuthalEqualAreaTransform
 from .star_vis import StarTracks, StarVisualization
+from .stars import constellations
 
 
 class StarViewBox(pg.ViewBox):
@@ -67,11 +69,37 @@ class StarViewBox(pg.ViewBox):
         )
         self.timeline.setParentItem(self)
 
-        self.update_scene()
+        self.constellation_text = pg.QtWidgets.QGraphicsTextItem()
+        self.constellation_text.setParentItem(self)
+        self.constellation_text.setZValue(1)
+        self.constellation_text.setDefaultTextColor(pg.mkColor(255, 255, 255, 255))
+        self.constellation_text.setTextWidth(200)
+        # self.constellation_text.setFont(pg.mkFont('Arial', 12))
+
+        self.update_scene_transforms()
         self.set_zoom(1.0)
         self.timer = pg.QtCore.QTimer()
-        self.timer.timeout.connect(self.update_time)
+        self.timer.timeout.connect(self.update_view)
         self.timer.start(16)
+
+    def focus_constellation(self, constellation):
+        self.focused_constellation = constellation
+        if constellation is None:
+            self.constellation_text.setPlainText('')
+            return
+        
+        desc = re.sub('\s+', ' ', constellations[constellation]['desc'])
+
+        self.constellation_text.setHtml(f'<div style="text-align: right"><b>{constellation}</b><br><br><span style="color: #CCC">{desc}</span></div>')
+        self.update_text_pos()
+
+    def update_text_pos(self):
+        self.constellation_text.setPos(self.width() - self.constellation_text.boundingRect().width() - 10,
+                                       self.height() - self.constellation_text.boundingRect().height() - 10)
+
+    def resizeEvent(self, ev):
+        self.update_text_pos()
+        return super().resizeEvent(ev)
 
     def set_zoom(self, z):
         self.zoom = z
@@ -98,13 +126,25 @@ class StarViewBox(pg.ViewBox):
         delta = e.lastScenePos() - e.scenePos()
         self.rotation_tr.rotate(delta.y() * 0.3 / self.zoom, axis=(0, 1, 0))
         self.rotation_tr.rotate(-delta.x() * 0.3 / self.zoom, axis=(1, 0, 0))
-        self.update_scene()
+        self.update_scene_transforms()
 
-    def update_scene(self):
+    def update_scene_transforms(self):
         with np.errstate(divide='ignore', invalid='ignore'):
             self.star_item.update_transform(self.projection)
             self.travelers.update_transform(self.projection)
             self.grid.update_transform(self.projection)
+
+    def update_view(self):
+        # called on timer to update the time and focus
+        self.update_time()
+        self.update_focus()
+
+    def update_focus(self):
+        return
+        # slew to target position / orientation / zoom
+        if self.target_view is not None:
+            pass
+        
 
     def update_time(self):
         now = time.perf_counter()
@@ -130,7 +170,7 @@ class StarViewBox(pg.ViewBox):
         self.time = time
         self.star_item.set_time(self.time)
         self.timeline.set_time(self.time)
-        self.update_scene()
+        self.update_scene_transforms()
 
     def pause(self, pause=True):
         self.paused = pause
