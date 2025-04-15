@@ -28,6 +28,7 @@ class StarViewBox(pg.ViewBox):
 
         self.initial_visible_radius = 2
         self.zoom = 1.0
+        self.target_view = None
 
         self.angle = [0, 0]
         self.rotation_tr = coorx.AffineTransform(dims=(3, 3))
@@ -41,6 +42,8 @@ class StarViewBox(pg.ViewBox):
             # self.perspective_tr,
             LambertAzimuthalEqualAreaTransform(),
         ])
+
+        self.home_view = self.get_current_view()
 
         self.star_item = StarVisualization(self.stars, self.projection)
         self.addItem(self.star_item.scatter)
@@ -79,11 +82,38 @@ class StarViewBox(pg.ViewBox):
         self.update_scene_transforms()
         self.set_zoom(1.0)
         self.timer = pg.QtCore.QTimer()
-        self.timer.timeout.connect(self.update_view)
+        self.timer.timeout.connect(self.timed_update)
         self.timer.start(16)
 
+    def get_current_view(self):
+        look = self.rotation_tr.inverse.map([0., 0., 1.])
+        look_up = self.rotation_tr.inverse.map([0., 1., 1.])
+        right = np.cross(look, look_up)
+        up = np.cross(right, look)
+        up /= np.linalg.norm(up)
+        return {'look': [float(x) for x in look], 'up': [float(x) for x in up], 'zoom': self.zoom}
+
+    def set_view(self, view):
+        right = np.cross(view['look'], view['up'])
+        right /= np.linalg.norm(right)
+        self.rotation_tr.set_mapping(
+            np.vstack([
+                [0, 0, 0],
+                view['look'],
+                right,
+                view['up'],
+            ]),
+            np.vstack([
+                [0, 0, 0],
+                [0, 0, 1],
+                [-1, 0, 0],
+                [0, 1, 0],
+            ])
+        )
+        self.set_zoom(view['zoom'])
+        self.update_scene_transforms()
+
     def focus_constellation(self, constellation):
-        self.focused_constellation = constellation
         if constellation is None:
             self.constellation_text.setPlainText('')
             return
@@ -92,6 +122,11 @@ class StarViewBox(pg.ViewBox):
 
         self.constellation_text.setHtml(f'<div style="text-align: right"><b>{constellation}</b><br><br><span style="color: #CCC">{desc}</span></div>')
         self.update_text_pos()
+
+        self.slew_to_view(constellations[constellation]['view'])
+
+    def go_home(self):
+        self.slew_to_view(self.home_view)
 
     def update_text_pos(self):
         self.constellation_text.setPos(self.width() - self.constellation_text.boundingRect().width() - 10,
@@ -134,27 +169,19 @@ class StarViewBox(pg.ViewBox):
             self.travelers.update_transform(self.projection)
             self.grid.update_transform(self.projection)
 
-    def update_view(self):
-        # called on timer to update the time and focus
-        self.update_time()
-        self.update_focus()
+    def slew_to_view(self, view):
+        self.target_view = view
 
-    def update_focus(self):
-        return
-        # slew to target position / orientation / zoom
-        if self.target_view is not None:
-            pass
-        
-
-    def update_time(self):
+    def timed_update(self):
         now = time.perf_counter()
         dt = now - self.last_update
         self.last_update = now
+        slew_amount = dt / self.slew_time
 
+        # play or slew to target time
         if self.paused:
             if self.target_time is not None:
                 # calculate slew amount for this dt
-                slew_amount = dt / self.slew_time
                 t = slew_amount * self.target_time + (1 - slew_amount) * self.time
                 if np.abs(t - self.target_time) < 10:
                     t = self.target_time
@@ -165,6 +192,22 @@ class StarViewBox(pg.ViewBox):
             if t > self.stop_time:
                 t = self.start_time
             self.set_time(t)
+
+        # slew to target position / orientation / zoom
+        if self.target_view is not None:
+            view = self.get_current_view()
+            target = self.target_view
+            next_view = {
+                'look': slew_amount * np.array(target['look']) + (1 - slew_amount) * np.array(view['look']),
+                'up': slew_amount * np.array(target['up']) + (1 - slew_amount) * np.array(view['up']),
+                'zoom': slew_amount * target['zoom'] + (1 - slew_amount) * view['zoom'],
+            }
+            self.set_view(next_view)
+
+            if np.allclose(next_view['look'], target['look']) and \
+               np.allclose(next_view['up'], target['up']) and \
+               np.allclose(next_view['zoom'], target['zoom']):
+                self.target_view = None
 
     def set_time(self, time):
         self.time = time

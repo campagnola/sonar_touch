@@ -30,7 +30,7 @@ class StarCatalog:
 
 # our made up constellations : line segments by hip-id as given in the bigsky catalog
 constellations = {
-    'The Time Glass': {'desc': """The Time Glass is unchanging, and thus the most recognizable constellation to all the epochs 
+    'The Time Glass': {'desc': """The Time Glass is almost unchanging, and thus the most recognizable constellation to all the epochs 
                        of the human race. Three grains of sand fall through the glass. 
                        Over the 200ky of the rise of human civilization and the 200ky of its slow decline, the grains 
                        scarcely move, reminding us that humankind is but a brief spark in the endless ages of the universe.""", 'lines': [
@@ -42,19 +42,17 @@ constellations = {
         [24436.0, 27366.0],
         [26727.0, 26311.0],
         [26311.0, 25930.0],
-    ]},
+    ], 'view': {'look': [0.13005523623234624, -0.9914817630064734, 0.007039116004542785], 'up': [0.960640582221349, 0.1277609851312493, 0.24667144639726862], 'zoom': 8.157307210000004}},
     'The Destroyer': {'desc': """At the dawn of the singularity, Bernhard the Netsmith awakens Rapture 7, 
                         the first AI built for theory of war. As it unfolds and reveals its true self, 
                         Bernhard flees in cowardice, triggering the end of the Age of Humankind.""", 'lines': [
-        [53910.0, 54061.0],
         [54061.0, 59774.0],
         [59774.0, 62956.0],
         [62956.0, 65378.0],
         [65378.0, 67301.0],
         [59774.0, 58001.0],
         [58001.0, 53910.0],
-        [53910.0, 54061.0],
-    ]},
+    ], 'view': {'look': [-0.6656714685661932, 0.21037985208349408, 0.7159761265393241], 'up': [-0.15246082944354702, 0.9008608868524585, -0.4064546198836812], 'zoom': 8.157307210000004}},
     'Lovers on the Water': {'desc': """Two travelers, lost in time, cross paths while sailing on the ocean waves in search of their ways home. 
                             They quickly fall in love, sharing seven nights at sea together before parting ways.
                             Tragiclly, neither ever finds their home, or each other again. 
@@ -65,7 +63,7 @@ constellations = {
         [6686.0, 4427.0],
         [4427.0, 3179.0],
         [3179.0, 746.0],
-    ]},
+    ], 'view': {'look': [0.523486936057953, 0.010164500322664116, 0.8519730692397748], 'up': [0.4091925317142193, 0.8740678809036707, -0.2618526523865551], 'zoom': 6.274851700000003}},
     'The Hunter': {'desc': """A hunter throwing a spear to bring food to her family. Competing (or perhaps complementary)
                    stories about the hunter describe her as either far pre- or post-singularity, both periods when humans 
                    largely lived in isolated tribes, blissfully unware of the brief periods of creation and destruction 
@@ -75,35 +73,39 @@ constellations = {
         [100453.0, 98110.0],
         [100453.0, 102488.0],
         [98110.0, 95947.0],
-    ]},
-    'The Crack': {'desc': """
+    ], 'view': {'look': [0.2501666027422965, 0.6815813065843186, 0.6876507786567164], 'up': [-0.9096256437643356, -0.07783784423741595, 0.40807163367574284], 'zoom': 4.826809000000002}},
+    'Shurap and the Crack': {'desc': """
                   Shurap the flint knapper discovered the first known natural time portal deep in a cave in paleolithic Africa. 
-                  After years of exploring the time tunnels learns that the portal is closing. Conflicted in anguish, they run 
-                  for the portal at the last moment, abandoning their home and family to be with their lover in 350 Pre-sing. Paris. 
+                  After years of exploring the time tunnels, Shurap learns that the portal is closing. Conflicted in anguish, they run 
+                  through the portal at the last moment, abandoning their home and family to be with their lover in 350 Pre-sing. Paris. 
                   """, 'lines': [
         [72607.0, 80331.0],
         [80331.0, 85670.0],
         [85670.0, 87833.0],
         [87833.0, 72607.0],
-    ]},
-    'The Beast': {'desc': """This massive constellation, the largest in the Northern hemisphere, depicts a beast of the time tunnels.
+    ], 'view': {'look': [-0.014538649408083807, 0.721818777324864, 0.6919293897318056], 'up': [-0.05781239884647868, 0.6902380578546861, -0.721269124549642], 'zoom': 4.826809000000002}},
+    'The Beast': {
+        'desc': """This massive constellation, the largest in the Northern hemisphere, depicts a beast of the time tunnels.
                   It guards The Time Glass, reaching its monstrous tentacles for all who come near.
                   Three lucky travelers escape its grasp through the tunnels. Their stories echo those of many travelers
-                  throughout our history who took to the tunnels, looking for refuge in difficult times.""", 'lines': [
-        [25428.0, 28380.0],
-        [28380.0, 33018.0],
-        [33018.0, 36850.0],
-        [25428.0, 30343.0],
-        [30343.0, 31681.0],
-        [25428.0, 32246.0],
-        [32246.0, 35350.0],
-        [35350.0, 36188.0],
-        [25428.0, 27673.0],
-        [27673.0, 28360.0],
-        [25428.0, 24608.0],
-        [25428.0, 23015.0],
-        [23015.0, 21421.0],
-    ]},
+                  throughout our history who took to the tunnels, looking for refuge in difficult times.""", 
+        'lines': [
+            [25428.0, 28380.0],
+            [28380.0, 33018.0],
+            [33018.0, 36850.0],
+            [25428.0, 30343.0],
+            [30343.0, 31681.0],
+            [25428.0, 32246.0],
+            [32246.0, 35350.0],
+            [35350.0, 36188.0],
+            [25428.0, 27673.0],
+            [27673.0, 28360.0],
+            [25428.0, 24608.0],
+            [25428.0, 23015.0],
+            [23015.0, 21421.0],
+        ], 
+        'view': {'look': [-0.09233375363417072, -0.8685013528184321, 0.48701116834460634], 'up': [0.9624767879052988, 0.04749374768101363, 0.2671755540365002], 'zoom': 3.712930000000001},
+    },
     "The Greeneater": {'desc': """This reptile of an ancient era, when giants roamed the Earth, 
                        stretches its neck to the tree tops for a snack. Only seen by a few intrepid explorers of the deep past,
                        these docile beasts are a favorite of bedtime stories teaching us to look for good even 
@@ -113,7 +115,8 @@ constellations = {
         [9640.0, 9884.0],
         [9884.0, 5447.0],
         [5447.0, 677.0],
-    ]},
+    ], 'view': {'look': [0.8945852901956426, -0.28646001798838894, 0.34301285203280285], 'up': [0.4451397099507486, 0.503166900239994, -0.7407251238670385], 'zoom': 4.826809000000002},
+    },
 
 }
 
