@@ -162,6 +162,7 @@ class StarViewBox(pg.ViewBox):
         self.rotation_tr.rotate(delta.y() * 0.3 / self.zoom, axis=(0, 1, 0))
         self.rotation_tr.rotate(-delta.x() * 0.3 / self.zoom, axis=(1, 0, 0))
         self.update_scene_transforms()
+        self.target_view = None
 
     def update_scene_transforms(self):
         with np.errstate(divide='ignore', invalid='ignore'):

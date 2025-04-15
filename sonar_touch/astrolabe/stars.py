@@ -67,7 +67,8 @@ constellations = {
     'The Hunter': {'desc': """A hunter throwing a spear to bring food to her family. Competing (or perhaps complementary)
                    stories about the hunter describe her as either far pre- or post-singularity, both periods when humans 
                    largely lived in isolated tribes, blissfully unware of the brief periods of creation and destruction 
-                   that separate them. As such, The Hunter symbolizes the symmetry of human history.""", 'lines': [
+                   that separate them. In modern culture, The Hunter symbolizes the bidirectional symmetry of human history juxtaposed
+                   against the unidirectional flow of time.""", 'lines': [
         [102098.0, 100453.0],
         [100453.0, 97165.0],
         [100453.0, 98110.0],
@@ -115,13 +116,14 @@ constellations = {
         [9640.0, 9884.0],
         [9884.0, 5447.0],
         [5447.0, 677.0],
+        [14576.0, 9884.0],
     ], 'view': {'look': [0.8945852901956426, -0.28646001798838894, 0.34301285203280285], 'up': [0.4451397099507486, 0.503166900239994, -0.7407251238670385], 'zoom': 4.826809000000002},
     },
 
 }
 
 
-def load_bigsky():
+def load_bigsky(mag_limit=5.5):
     """
     Requires the bigsky star catalog from https://github.com/steveberardi/bigsky/releases
 
@@ -144,7 +146,7 @@ def load_bigsky():
         os.remove(csv_file+'.gz')
     print("Loading star catalog")        
     star_df = pandas.read_csv(csv_file)
-    star_df = star_df[star_df['magnitude'] < 6.5]
+    star_df = star_df[star_df['magnitude'] < mag_limit]
     return star_df
 
 
