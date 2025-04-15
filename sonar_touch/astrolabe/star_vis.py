@@ -1,6 +1,8 @@
 import numpy as np
 import pyqtgraph as pg
 from .color import btvt_to_rgb
+from .stars import constellations
+
 
 # make some custom scatter plot symbols for stars
 from pyqtgraph.graphicsItems.ScatterPlotItem import Symbols
@@ -48,6 +50,15 @@ class StarVisualization:
             pxMode=True,
             data=np.arange(len(self.stars.data)),
         )
+
+        self.constellations = {
+            name: Constellation(self.stars, cdata, pen=pg.mkPen((130, 180, 255, 100), width=2))
+            for name, cdata in constellations.items()
+        }
+        for constellation in self.constellations.values():
+            constellation.setParentItem(self.scatter)
+            constellation.setFlag(pg.QtWidgets.QGraphicsItem.ItemStacksBehindParent)
+            constellation.setZValue(-1)
 
     @property
     def sizes(self):
@@ -140,7 +151,9 @@ class StarVisualization:
         }
         if update_sizes:
             args['size'] = self.sizes
-        self.scatter.setData(**args)   
+        self.scatter.setData(**args)
+        for constellation in self.constellations.values():
+            constellation.update_positions(self.get_mapped_pos())
 
 
 class StarTracks(pg.PlotCurveItem):
@@ -168,5 +181,27 @@ class StarTracks(pg.PlotCurveItem):
     def update_transform(self, transform):
         verts = transform.map(self.verts)
         self.setData(verts[:,0], verts[:,1], connect=self.connect)
+
+
+class Constellation(pg.PlotCurveItem):
+    def __init__(self, stars, cdata, pen):
+        super().__init__()
+        self.stars = stars
+        self.cdata = cdata
+        self.setPen(pen)
+
+        inds = []
+        hip_id_lookup = {}
+        for i,(_, row) in enumerate(self.stars.data.iterrows()):
+            hip_id_lookup.setdefault(row['hip_id'], i)
+        for star1_id, star2_id in cdata['lines']:
+            ind1 = hip_id_lookup[star1_id]
+            ind2 = hip_id_lookup[star2_id]
+            inds.extend([ind1, ind2])
+        self.indices = inds
+
+    def update_positions(self, positions):
+        verts = positions[self.indices]
+        self.setData(verts[:,0], verts[:,1], connect='pairs')
 
 

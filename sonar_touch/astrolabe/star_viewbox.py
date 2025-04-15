@@ -139,16 +139,28 @@ class StarViewBox(pg.ViewBox):
     def scatter_clicked(self, item, points):
         if len(points) == 0:
             return
+
+        max_mag, max_pt = None, None        
         for pt in points:
             rec = self.stars.data.iloc[pt.data()]
-            print(rec['name'])
+            if max_mag is None or rec['magnitude'] < max_mag:
+                max_mag = rec['magnitude']
+                max_pt = rec
+
+        if not hasattr(self, '_last_click') or self._last_click is None:
+            self._last_click = max_pt
+        else:
+            print(f'[{self._last_click['hip_id']}, {max_pt["hip_id"]}],') 
+            self._last_click = None
 
     def keyPressEvent(self, ev):
         ev.accept()
         if ev.text() == '-':
             self.play_speed *= 0.8
+            self.speed = self.play_speed
         elif ev.text() in ['+', '=']:
             self.play_speed /= 0.8
+            self.speed = self.play_speed
         elif ev.text() == ' ':
             self.speed = self.play_speed
             self.pause(not self.paused)

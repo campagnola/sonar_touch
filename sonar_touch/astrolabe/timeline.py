@@ -14,7 +14,7 @@ class Timeline(pg.QtWidgets.QGraphicsItem):
         self.line = pg.QtWidgets.QGraphicsPathItem()
         self.line.setPen(pen)
         self.line.setParentItem(self)      
-        self.set_positions(endpoints)  
+        self.set_positions(endpoints) 
 
         self.label = pg.TextItem(
             text='',
@@ -54,10 +54,11 @@ class Timeline(pg.QtWidgets.QGraphicsItem):
         path.moveTo(*p1)
         path.lineTo(*p2)
 
-        tick = np.array([0, 7])
-        for i,p in enumerate(np.linspace(p1, p2, 5)):
+        npts = 7
+        tick = np.array([0, 10])
+        for i,p in enumerate(np.linspace(p1, p2, npts)):
             path.moveTo(*p)
-            tick_scale = 1 if i in (0, 3, 6) else 0.5                
+            tick_scale = 1 if i in (0, (npts-1)//2, npts-1) else 0.5                
             path.lineTo(*(p + tick * tick_scale))
         
         self.line.setPath(path)        

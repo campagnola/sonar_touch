@@ -28,6 +28,95 @@ class StarCatalog:
         self.data = data
 
 
+# our made up constellations : line segments by hip-id as given in the bigsky catalog
+constellations = {
+    'The Time Glass': {'desc': """The Time Glass is unchanging, and thus the most recognizable constellation to all the epochs 
+                       of the human race. Three grains of sand fall through the glass. 
+                       Over the 200ky of the rise of human civilization and the 200ky of its slow decline, the grains 
+                       scarcely move, reminding us that humankind is but a brief spark in the endless ages of the universe.""", 'lines': [
+        [27366.0, 26727.0],
+        [26727.0, 27989.0],
+        [27989.0, 26207.0],
+        [26207.0, 25930.0],
+        [25930.0, 24436.0],
+        [24436.0, 27366.0],
+        [26727.0, 26311.0],
+        [26311.0, 25930.0],
+    ]},
+    'The Destroyer': {'desc': """At the dawn of the singularity, Bernhard the Netsmith awakens Rapture 7, 
+                        the first AI built for theory of war. As it unfolds and reveals its true self, 
+                        Bernhard flees in cowardice, triggering the end of the Age of Humankind.""", 'lines': [
+        [53910.0, 54061.0],
+        [54061.0, 59774.0],
+        [59774.0, 62956.0],
+        [62956.0, 65378.0],
+        [65378.0, 67301.0],
+        [59774.0, 58001.0],
+        [58001.0, 53910.0],
+        [53910.0, 54061.0],
+    ]},
+    'Lovers on the Water': {'desc': """Two travelers, lost in time, cross paths while sailing on the ocean waves in search of their ways home. 
+                            They quickly fall in love, sharing seven nights at sea together before parting ways.
+                            Tragiclly, neither ever finds their home, or each other again. 
+                            This story is the origin of the expression "like lovers on the water", 
+                            which reminds us that we always live in the present moment,
+                            no matter how far we have come, or how far we have left to go.""", 'lines': [
+        [8886.0, 6686.0],
+        [6686.0, 4427.0],
+        [4427.0, 3179.0],
+        [3179.0, 746.0],
+    ]},
+    'The Hunter': {'desc': """A hunter throwing a spear to bring food to her family. Competing (or perhaps complementary)
+                   stories about the hunter describe her as either far pre- or post-singularity, both periods when humans 
+                   largely lived in isolated tribes, blissfully unware of the brief periods of creation and destruction 
+                   that separate them. As such, The Hunter symbolizes the symmetry of human history.""", 'lines': [
+        [102098.0, 100453.0],
+        [100453.0, 97165.0],
+        [100453.0, 98110.0],
+        [100453.0, 102488.0],
+        [98110.0, 95947.0],
+    ]},
+    'The Crack': {'desc': """
+                  Shurap the flint knapper discovered the first known natural time portal deep in a cave in paleolithic Africa. 
+                  After years of exploring the time tunnels learns that the portal is closing. Conflicted in anguish, they run 
+                  for the portal at the last moment, abandoning their home and family to be with their lover in 350 Pre-sing. Paris. 
+                  """, 'lines': [
+        [72607.0, 80331.0],
+        [80331.0, 85670.0],
+        [85670.0, 87833.0],
+        [87833.0, 72607.0],
+    ]},
+    'The Beast': {'desc': """This massive constellation, the largest in the Northern hemisphere, depicts a beast of the time tunnels.
+                  It guards The Time Glass, reaching its monstrous tentacles for all who come near.
+                  Three lucky travelers escape its grasp through the tunnels. Their stories echo those of many travelers
+                  throughout our history who took to the tunnels, looking for refuge in difficult times.""", 'lines': [
+        [25428.0, 28380.0],
+        [28380.0, 33018.0],
+        [33018.0, 36850.0],
+        [25428.0, 30343.0],
+        [30343.0, 31681.0],
+        [25428.0, 32246.0],
+        [32246.0, 35350.0],
+        [35350.0, 36188.0],
+        [25428.0, 27673.0],
+        [27673.0, 28360.0],
+        [25428.0, 24608.0],
+        [25428.0, 23015.0],
+        [23015.0, 21421.0],
+    ]},
+    "The Greeneater": {'desc': """This reptile of an ancient era, when giants roamed the Earth, 
+                       stretches its neck to the tree tops for a snack. Only seen by a few intrepid explorers of the deep past,
+                       these docile beasts are a favorite of bedtime stories teaching us to look for good even 
+                       in dark and terrifying places.""", 'lines': [ 
+        [15863.0, 14576.0],
+        [14576.0, 9640.0],
+        [9640.0, 9884.0],
+        [9884.0, 5447.0],
+        [5447.0, 677.0],
+    ]},
+
+}
+
 
 def load_bigsky():
     """
