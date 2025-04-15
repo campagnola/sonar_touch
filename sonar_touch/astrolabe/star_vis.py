@@ -10,13 +10,37 @@ class StarVisualization:
         self.time = 0
         self.pos_at_time = None
         self.mapped_pos = None
+        self.zoom = 1
 
         magnitudes = self.stars.magnitudes
-        brightness = 15 * ((5.5 - magnitudes) / 5.5)**2
-        self.sizes = np.clip(brightness, 1, np.inf)
-        self.alphas = 255 * np.clip(brightness, 0.0, 1.0)
+        # brightness = ((5.5 - magnitudes) / 5.5)**2
+        self._sizes = None
+        # self.alphas = 255 * np.clip(brightness, 0.0, 1.0)
+        self._brushes = None
 
-        self.brushes = []
+        self.scatter = pg.ScatterPlotItem(
+            pos=self.get_mapped_pos(),
+            size=self.sizes,
+            brush=self.brushes,
+            pen=None,
+            symbol='o',
+            pxMode=True,
+            data=np.arange(len(self.stars.data)),
+        )
+
+    @property
+    def sizes(self):
+        if self._sizes is not None:
+            return self._sizes
+        self._sizes = np.clip(15 * self.zoom * ((5.5 - self.stars.magnitudes) / 5.5)**2, 0, 15)
+        return self._sizes
+
+    @property
+    def brushes(self):
+        if self._brushes is not None:
+            return self._brushes
+        
+        self._brushes = []
         for i, (index, row) in enumerate(self.stars.data.iterrows()):
             bv = row['bv']
             if np.isnan(bv):
@@ -26,18 +50,14 @@ class StarVisualization:
                 color = np.array(btvt_to_rgb(bv))
                 mix = 0.5
                 color = (mix * color + (1 - mix) * 255)
-            alpha = self.alphas[i]
-            self.brushes.append(pg.mkBrush(color[0], color[1], color[2], alpha))
+            alpha = 255 #self.alphas[i]
+            self._brushes.append(pg.mkBrush(color[0], color[1], color[2], alpha))
+        return self._brushes
 
-        self.scatter = pg.ScatterPlotItem(
-            pos=self.get_mapped_pos(),
-            size=self.sizes,
-            pen=None,
-            brush=self.brushes,
-            symbol='o',
-            pxMode=True,
-            data=np.arange(len(self.stars.data)),
-        )
+    def set_zoom(self, zoom):
+        self.zoom = zoom
+        self._sizes = None
+        self.update_stars(update_sizes=True)
 
     def set_time(self, time):
         self.time = time
@@ -57,13 +77,16 @@ class StarVisualization:
             self.mapped_pos = self.transform.map(self.pos_at_time)[..., :2]
         return self.mapped_pos
 
-    def update_stars(self):
-        self.scatter.setData(
-            pos=self.get_mapped_pos(),
-            size=self.sizes,
-            brush=self.brushes,
-            data=np.arange(len(self.stars.data)),
-        )
+    def update_stars(self, update_sizes=False):
+        args = {
+            'pos': self.get_mapped_pos(),
+            'size': self.sizes,
+            'brush': self.brushes,
+            'data': np.arange(len(self.stars.data)),
+        }
+        if update_sizes:
+            args['size'] = self.sizes
+        self.scatter.setData(**args)   
 
 
 class StarTracks(pg.PlotCurveItem):

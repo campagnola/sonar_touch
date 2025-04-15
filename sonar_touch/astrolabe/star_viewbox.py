@@ -24,7 +24,8 @@ class StarViewBox(pg.ViewBox):
         self.start_time = -200000
         self.stop_time = 200000
 
-        self.visible_radius = 2
+        self.initial_visible_radius = 2
+        self.zoom = 1.0
 
         self.angle = [0, 0]
         self.rotation_tr = coorx.AffineTransform(dims=(3, 3))
@@ -67,25 +68,24 @@ class StarViewBox(pg.ViewBox):
         self.timeline.setParentItem(self)
 
         self.update_scene()
-
-        self.setXRange(-self.visible_radius, self.visible_radius)
-        self.setYRange(-self.visible_radius, self.visible_radius)
-
+        self.set_zoom(1.0)
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.update_time)
         self.timer.start(16)
 
-    def zoom(self, frac):
-        self.visible_radius *= frac
-        self.setXRange(-self.visible_radius, self.visible_radius)
-        self.setYRange(-self.visible_radius, self.visible_radius)
+    def set_zoom(self, z):
+        self.zoom = z
+        visible_radius = self.initial_visible_radius / self.zoom
+        self.setXRange(-visible_radius, visible_radius)
+        self.setYRange(-visible_radius, visible_radius)
+        self.star_item.set_zoom(self.zoom)
 
-    def wheelEvent(self, ev):
-        ev.accept()
-        if ev.delta() > 0:
-            self.zoom(1/1.1)
+    def wheelEvent(self, event, axis=None):
+        event.accept()
+        if event.delta() > 0:
+            self.set_zoom(self.zoom*1.1)
         else:
-            self.zoom(1.1)
+            self.set_zoom(self.zoom/1.1)
 
     def mouseDragEvent(self, ev, axis=None):
         ev.accept()
