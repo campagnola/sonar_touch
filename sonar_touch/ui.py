@@ -23,7 +23,6 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         self.audio_queue = audio_queue
         self.sample_rate = sample_rate
         self.block_size = block_size
-        self.plotting_enabled = True
 
         self.last_trigger_time = 0
         self.trigger_threshold = 0.04
@@ -75,13 +74,22 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         left_layout = pg.QtWidgets.QGridLayout()
         self.left_panel.setLayout(left_layout)
         self.splitter.addWidget(self.left_panel)
-        
+
+        # plot checks
+        self.plot_stream_check = pg.QtWidgets.QCheckBox("Plot Audio Stream")
+        self.plot_stream_check.setChecked(True)
+        left_layout.addWidget(self.plot_stream_check, left_layout.rowCount(), 0, 1, 2)
+
+        self.plot_trigger_check = pg.QtWidgets.QCheckBox("Plot Trigger")
+        self.plot_trigger_check.setChecked(True)
+        left_layout.addWidget(self.plot_trigger_check, left_layout.rowCount(), 0, 1, 2)
+
         # Training data tree widget
         self.training_tree = pg.QtWidgets.QTreeWidget()
         self.training_tree.setHeaderLabels(["ID", "Tapper", "Location", "Date", "File"])
         self.training_tree.setSelectionMode(pg.QtWidgets.QAbstractItemView.ContiguousSelection)
         self.training_tree.itemSelectionChanged.connect(self.training_example_selected)
-        left_layout.addWidget(self.training_tree, 0, 0, 1, 2)
+        left_layout.addWidget(self.training_tree, left_layout.rowCount(), 0, 1, 2)
         
         # editable tapper combo box
         self.tapper_combo = pg.QtWidgets.QComboBox()
@@ -144,7 +152,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         sample_index, data = self.buffer.get_data()
 
         # plot all data in the buffer
-        if self.plotting_enabled:
+        if self.plot_stream_check.isChecked():
             self.plot.clear()
             t = np.arange(data.shape[1]) / self.sample_rate
             for i,chan in enumerate(data):
@@ -169,7 +177,7 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         trigger_index = trigger_result['index']
         self.last_trigger_time = now
 
-        if self.plotting_enabled:
+        if self.plot_trigger_check.isChecked():
             self.trigger_plot.clear()
             t = (np.arange(plot_data.shape[1]) - trigger_index) / self.sample_rate
             for i,chan in enumerate(plot_data):
@@ -302,24 +310,10 @@ class MainWindow(pg.QtWidgets.QMainWindow):
         
         if confirm == pg.QtWidgets.QMessageBox.Yes:
             for item in selected_items:
-                self.delete_training_example(item.record)
+                self.project.delete_training_example(item.record, save=False)
                 self.training_tree.takeTopLevelItem(self.training_tree.indexOfTopLevelItem(item))
+            self.project.save_training_index()
             self.example_plot.clear()
-
-    def delete_training_example(self, entry):
-        """Delete a single training example"""
-        if self.project is None:
-            raise ValueError("No project loaded")
-
-        filename = entry['filename']
-        example_path = os.path.join(self.project.project_path, filename)
-        os.remove(example_path)
-        
-        # Update the training index
-        self.project.training_index.remove(entry)
-
-        # Rewrite the index file
-        self.project.save_training_index()
 
 
 class ProjectionROI(pg.PolyLineROI):
@@ -363,8 +357,9 @@ class ProjectionROI(pg.PolyLineROI):
     def move_selected_handle(self, dx, dy):
         """Move the selected handle by the specified delta"""
         if self.selected_handle is not None:
-            pos = self.selected_handle.pos()
-            self.selected_handle.setPos(pos.x() + dx, pos.y() + dy)
+            pos = self.mapToScene(self.selected_handle.pos())
+            pt = pg.Point(pos.x() + dx, pos.y() + dy)
+            self.selected_handle.movePoint(pt)
             self.sigRegionChangeFinished.emit(self)
 
 
@@ -404,6 +399,7 @@ class ProjectedView(pg.GraphicsLayoutWidget):
             self.setGeometry(screen.geometry())
             self.showFullScreen()
 
+        self.show()
 
     def projection_roi_changed(self):
         tr = self.projection_roi.transform()

@@ -63,7 +63,14 @@ class SonarTouchProject:
     def save_training_index(self):
         index = ''
         for example in sorted(self.training_index, key=lambda x: x['id']):
-            record = json.dumps(example)
+            if 'data' in example:
+                example = example.copy()
+                del example['data']
+            try:
+                record = json.dumps(example)
+            except Exception:
+                print(example)
+                raise
             index = index + record + '\n'
         with open(self.training_index_file, 'w') as f:
             f.write(index)
@@ -97,4 +104,18 @@ class SonarTouchProject:
         model.to(device)
         model.device = device
         return model
-    
+
+    def delete_training_example(self, entry, save=True):
+        """Delete a single training example"""
+
+        filename = entry['filename']
+        example_path = os.path.join(self.project_path, filename)
+        if os.path.exists(example_path):
+            os.remove(example_path)
+        
+        # Update the training index
+        self.training_index.remove(entry)
+
+        # Rewrite the index file
+        if save:
+            self.save_training_index()

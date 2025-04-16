@@ -35,7 +35,8 @@ if __name__ == "__main__":
     window = MainWindow(recorder.audio_queue, recorder.sample_rate, recorder.block_size)
 
     if args.no_plot:
-        window.enable_plotting(False)
+        window.plot_stream_check.setChecked(False)
+        window.plot_trigger_check.setChecked(False)
 
     if args.project:
         window.load_project(args.project)
