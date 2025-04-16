@@ -203,6 +203,11 @@ class StarViewBox(pg.ViewBox):
                 'up': slew_amount * np.array(target['up']) + (1 - slew_amount) * np.array(view['up']),
                 'zoom': slew_amount * target['zoom'] + (1 - slew_amount) * view['zoom'],
             }
+            next_view['look'] /= np.linalg.norm(next_view['look'])
+            right = np.cross(next_view['look'], next_view['up'])
+            next_view['up'] = np.cross(right, next_view['look'])
+            next_view['up'] /= np.linalg.norm(next_view['up'])
+
             self.set_view(next_view)
 
             if np.allclose(next_view['look'], target['look']) and \
@@ -253,24 +258,32 @@ class StarViewBox(pg.ViewBox):
             t = self.start_time + t * (self.stop_time - self.start_time)
             self.slew_to_time(t)
         # arrow keys
-        elif ev.key() == pg.QtCore.Qt.Key_Left:
+        elif ev.text() == '[':
             self.speed = -10000
             self.pause(False)
-        elif ev.key() == pg.QtCore.Qt.Key_Right:
+        elif ev.text() == ']':
             self.speed = 10000
             self.pause(False)
-        elif ev.key() == pg.QtCore.Qt.Key_Up:
+        elif ev.text() == '{':
             self.speed = -50000
             self.pause(False)
-        elif ev.key() == pg.QtCore.Qt.Key_Down:
+        elif ev.text() == '}':
             self.speed = 50000
             self.pause(False)
+        elif ev.key() == pg.QtCore.Qt.Key_Left:
+            self.slew_in_direction([-1, 0])
+        elif ev.key() == pg.QtCore.Qt.Key_Right:
+            self.slew_in_direction([1, 0])
+        elif ev.key() == pg.QtCore.Qt.Key_Up:
+            self.slew_in_direction([0, 1])
+        elif ev.key() == pg.QtCore.Qt.Key_Down:
+            self.slew_in_direction([0, -1])
         else:
             ev.ignore()
 
     def keyReleaseEvent(self, event):
         event.accept()
-        if event.key() in (pg.QtCore.Qt.Key_Left, pg.QtCore.Qt.Key_Right, pg.QtCore.Qt.Key_Up, pg.QtCore.Qt.Key_Down):
+        if event.text() != '' and event.text() in '[]{}':
             self.pause(True)
         else:
             event.ignore()
@@ -278,3 +291,29 @@ class StarViewBox(pg.ViewBox):
     def slew_to_time(self, time):
         self.paused = True
         self.target_time = time
+
+    def slew_in_direction(self, direction):
+        """Slew to a target that is close to the current view target, plus *direction* (x, y)
+        """
+        # convert to screen coordinates
+        direction = np.array([-direction[1], direction[0], 0], dtype=float)
+
+        # where are we looking now
+        target_view = self.get_current_view()
+
+        # where would we like to look
+        direction /= np.linalg.norm(direction)
+        direction[2] = 1
+        look = self.rotation_tr.inverse.map(direction)
+
+        # calculate new orthogonal up vector
+        look /= np.linalg.norm(look)
+        target_view['look'] = look
+        right = np.cross(look, target_view['up'])
+        up = np.cross(right, look)
+        up /= np.linalg.norm(up)
+        target_view['up'] = up
+
+        # do it
+        self.slew_to_view(target_view)
+    

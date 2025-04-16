@@ -14,7 +14,7 @@ locations = np.array([action['location'] for action in tap_actions])
 
 class SonarAstrolabe:
     def __init__(self):
-        self.last_tap_time = time.perf_counter()
+        self.last_tap_time = None
         self.recent_taps = []
         self.max_tap_distance = 0.1
 
@@ -60,5 +60,7 @@ class SonarAstrolabe:
             print("tap too far away")
 
     def timed_update(self):
-        if time.perf_counter() - self.last_tap_time > 30:
+        if self.last_tap_time is not None and time.perf_counter() - self.last_tap_time > 30:
             self.view.go_home()
+            self.last_tap_time = None
+

@@ -95,10 +95,10 @@ class StarVisualization:
             return self._brushes
 
         # how much bv color to mix with white
-        mix = 0.7
+        mix = 0.9
         # make a limited set of brushes to assist with scatter plot performance
         bv_mean = self.stars.data['bv'].mean()
-        bv_std = self.stars.data['bv'].std()
+        bv_step = 0.5 * self.stars.data['bv'].std()
         bv_brushes = {np.nan: pg.mkBrush(255, 255, 255)}
         def get_bv_brush(bv):
             if np.isnan(bv):
@@ -106,7 +106,7 @@ class StarVisualization:
             else:
                 # B-V = 0.850 * (BT-VT)
                 # quantize bv
-                bv = int((bv - bv_mean) / bv_std) * bv_std + bv_mean                
+                bv = int((bv - bv_mean) / bv_step) * bv_step + bv_mean                
                 if bv not in bv_brushes:
                     color = np.array(btvt_to_rgb(bv))
                     bv_brushes[bv] = pg.mkBrush(mix * color + (1 - mix) * 255)
@@ -134,12 +134,18 @@ class StarVisualization:
         self.update_stars()
 
     def get_mapped_pos(self):
+        # position of stars at current time, with the projection applied
+        pos_at_time = self.get_unmapped_pos_at_current_time()
+        if self.mapped_pos is None:
+            self.mapped_pos = self.transform.map(pos_at_time)[..., :2]
+        return self.mapped_pos
+
+    def get_unmapped_pos_at_current_time(self):
+        # position of stars at current time, without the projection applied
         if self.pos_at_time is None:
             self.pos_at_time = self.stars.positions + self.stars.vectors * self.time
             self.mapped_pos = None
-        if self.mapped_pos is None:
-            self.mapped_pos = self.transform.map(self.pos_at_time)[..., :2]
-        return self.mapped_pos
+        return self.pos_at_time
 
     def update_stars(self, update_sizes=False):
         args = {
@@ -152,8 +158,11 @@ class StarVisualization:
         if update_sizes:
             args['size'] = self.sizes
         self.scatter.setData(**args)
+
+        # update constellations
+        unmapped_pos = self.get_unmapped_pos_at_current_time()
         for constellation in self.constellations.values():
-            constellation.update_positions(self.get_mapped_pos())
+            constellation.update_positions(unmapped_pos, self.transform)
 
 
 class StarTracks(pg.PlotCurveItem):
@@ -197,11 +206,24 @@ class Constellation(pg.PlotCurveItem):
         for star1_id, star2_id in cdata['lines']:
             ind1 = hip_id_lookup[star1_id]
             ind2 = hip_id_lookup[star2_id]
-            inds.extend([ind1, ind2])
-        self.indices = inds
+            inds.append([ind1, ind2])
+        self.indices = np.array(inds)
 
-    def update_positions(self, positions):
-        verts = positions[self.indices]
-        self.setData(verts[:,0], verts[:,1], connect='pairs')
+    def update_positions(self, positions, transform):
+        # positions is the current position of all stars, without projection mapping
+        # transform provides the projection
+
+        verts = positions[self.indices]  # verts is (N, 2, 3)
+
+        # interpolate along each line segment so they can curve when near the nonlinear region of the projection
+        n_interp = 15
+        interp_verts = np.linspace(verts[:,0], verts[:,1], n_interp).transpose(1, 0, 2).reshape(-1, 3)
+        connect = np.ones(interp_verts.shape[0], dtype=bool)
+        connect[n_interp-1::n_interp] = False
+
+        # apply the projection
+        projected_verts = transform.map(interp_verts)
+
+        self.setData(projected_verts[:,0], projected_verts[:,1], connect=connect)
 
 

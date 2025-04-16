@@ -55,7 +55,7 @@ constellations = {
     ], 'view': {'look': [-0.6656714685661932, 0.21037985208349408, 0.7159761265393241], 'up': [-0.15246082944354702, 0.9008608868524585, -0.4064546198836812], 'zoom': 8.157307210000004}},
     'Lovers on the Water': {'desc': """Two travelers, lost in time, cross paths while sailing on the ocean waves in search of their ways home. 
                             They quickly fall in love, sharing seven nights at sea together before parting ways.
-                            Tragiclly, neither ever finds their home, or each other again. 
+                            Tragically, neither ever finds their home, or each other again. 
                             This story is the origin of the expression "like lovers on the water", 
                             which reminds us that we always live in the present moment,
                             no matter how far we have come, or how far we have left to go.""", 'lines': [
