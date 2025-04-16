@@ -79,8 +79,12 @@ class StarViewBox(pg.ViewBox):
         self.constellation_text.setParentItem(self)
         self.constellation_text.setZValue(1)
         self.constellation_text.setDefaultTextColor(pg.mkColor(255, 255, 255, 255))
-        self.constellation_text.setTextWidth(200)
-        # self.constellation_text.setFont(pg.mkFont('Arial', 12))
+        self.constellation_text.setTextWidth(500)
+
+        font = pg.QtGui.QFont()
+        font.setFamily('Arial')
+        font.setPointSize(20)
+        self.constellation_text.setFont(font)
 
         self.update_scene_transforms()
         self.set_zoom(1.0)
@@ -123,7 +127,9 @@ class StarViewBox(pg.ViewBox):
         
         desc = re.sub(r'\s+', ' ', constellations[constellation]['desc'])
 
-        self.constellation_text.setHtml(f'<div style="text-align: right"><b>{constellation}</b><br><br><span style="color: #CCC">{desc}</span></div>')
+        self.constellation_text.setHtml(
+            f'<div style="text-align: right"><span style="font-size: 20pt;"><b>{constellation}</b></span><br><br>'
+            f'<span style="color: #CCC; font-size: 18pt;">{desc}</span></div>')
         self.update_text_pos()
 
         view = constellations[constellation]['view']
@@ -143,13 +149,13 @@ class StarViewBox(pg.ViewBox):
 
     def set_zoom(self, z):
         self.zoom = z
-        self.target_view = None
         visible_radius = self.initial_visible_radius / self.zoom
         self.setXRange(-visible_radius, visible_radius)
         self.setYRange(-visible_radius, visible_radius)
         self.star_item.set_zoom(self.zoom)
 
     def wheelEvent(self, event, axis=None):
+        self.target_view = None
         event.accept()
         if event.delta() > 0:
             self.set_zoom(self.zoom*1.3)

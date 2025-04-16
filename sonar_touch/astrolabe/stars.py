@@ -253,15 +253,19 @@ constellations = {
         ],
         'view': {'look': [0.3763526979385244, -0.8340901623975523, 0.40330168329182414], 'up': [-0.2976828636388461, 0.3033587515575344, 0.9051841694093145], 'zoom': 8.157307210000004},
     },
-    "1": {
-        'desc': """The Kite""",
+    "The Kite": {
+        'desc': """A child flying a kite as it drifts in the stellar flow. True kites are only found in a very brief window of history,
+        during the golden age of abundance and creativity. We carry this symbol with us as a reminder that, in history as in our
+        own lives, the best times are fleeting, sacred, and cherished. Go fly a kite!""",
         'lines': [
             [20889.0, 20455.0],  # Ain -> Secunda Hyadum
             [20455.0, 20205.0],  # Secunda Hyadum -> Prima Hyadum
             [20205.0, 20894.0],  # Prima Hyadum -> Chamukuy
             [20894.0, 20455.0],  # Chamukuy -> Secunda Hyadum
             [20894.0, 20889.0],  # Chamukuy -> Ain
-            [20455.0, 21421.0],  # Secunda Hyadum -> Aldebaran
+            [21421.0, 20894.0],  # Aldebaran -> Chamukuy
+            [20894.0, 21273.0],  # Chamukuy -> nan
+            [21273.0, 21589.0],  # nan -> nan
         ],
         'view': {'look': [0.413595080712023, 0.8816939020586583, 0.22705720046585817], 'up': [0.8353214466623753, -0.26826507388714627, -0.47986657612111344], 'zoom': 8.157307210000004},
     },

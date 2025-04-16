@@ -3,5 +3,5 @@ import pyqtgraph as pg
 
 pg.dbg()
 win, view = main()
-
+win.showMaximized()
 
