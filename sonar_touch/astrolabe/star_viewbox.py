@@ -41,6 +41,7 @@ class StarViewBox(pg.ViewBox):
             # MercatorSphericalTransform()
             # self.perspective_tr,
             LambertAzimuthalEqualAreaTransform(),
+            coorx.STTransform(scale=[1, -1, 1]),  # equal area has y flipped for looking at the globe from the outside
         ])
 
         self.home_view = self.get_current_view()
@@ -48,14 +49,16 @@ class StarViewBox(pg.ViewBox):
         self.star_item = StarVisualization(self.stars, self.projection)
         self.addItem(self.star_item.scatter)
         self.star_item.scatter.sigClicked.connect(self.scatter_clicked)
+        for c in self.star_item.constellations.values():
+            c.sigClicked.connect(self.constellation_clicked)
 
         self.travelers = StarTracks(
             self.stars,
-            pen=(255, 255, 255, 80), 
+            pen=pg.mkPen((255, 230, 200, 80), dash=(3, 3)),
             time_range=(self.start_time, self.stop_time),
             stars_to_draw=[
                 'Vega', 'Sirius', 'Capella', 'Arcturus', 'Altair', 'Aljanah', 'Rigil Kentaurus', 'Toliman',
-                'Procyon', 'Pollux', 'Aldebaran', 'Tabit',
+                'Procyon', 'Pollux', 'Aldebaran', 'Tabit', 'Caph', 'Fomalhaut',
             ],
         )
         self.addItem(self.travelers)
@@ -118,12 +121,14 @@ class StarViewBox(pg.ViewBox):
             self.constellation_text.setPlainText('')
             return
         
-        desc = re.sub('\s+', ' ', constellations[constellation]['desc'])
+        desc = re.sub(r'\s+', ' ', constellations[constellation]['desc'])
 
         self.constellation_text.setHtml(f'<div style="text-align: right"><b>{constellation}</b><br><br><span style="color: #CCC">{desc}</span></div>')
         self.update_text_pos()
 
-        self.slew_to_view(constellations[constellation]['view'])
+        view = constellations[constellation]['view']
+        if view:
+            self.slew_to_view(view)
 
     def go_home(self):
         self.slew_to_view(self.home_view)
@@ -138,6 +143,7 @@ class StarViewBox(pg.ViewBox):
 
     def set_zoom(self, z):
         self.zoom = z
+        self.target_view = None
         visible_radius = self.initial_visible_radius / self.zoom
         self.setXRange(-visible_radius, visible_radius)
         self.setYRange(-visible_radius, visible_radius)
@@ -159,7 +165,7 @@ class StarViewBox(pg.ViewBox):
         if ev.isFinish():
             return
         delta = e.lastScenePos() - e.scenePos()
-        self.rotation_tr.rotate(delta.y() * 0.3 / self.zoom, axis=(0, 1, 0))
+        self.rotation_tr.rotate(-delta.y() * 0.3 / self.zoom, axis=(0, 1, 0))
         self.rotation_tr.rotate(-delta.x() * 0.3 / self.zoom, axis=(1, 0, 0))
         self.update_scene_transforms()
         self.target_view = None
@@ -236,11 +242,17 @@ class StarViewBox(pg.ViewBox):
                 max_mag = rec['magnitude']
                 max_pt = rec
 
+        # print(f'# {max_pt["name"]}, ra:{max_pt["ra_degrees_j2000"]}°, dec:{max_pt["dec_degrees_j2000"]}° '
+        #       f'Δra:{max_pt["ra_mas_per_year"]}mas/yr, Δdec:{max_pt["dec_mas_per_year"]}mas/yr, mag:{max_pt["magnitude"]}')
+
         if not hasattr(self, '_last_click') or self._last_click is None:
             self._last_click = max_pt
         else:
-            print(f'[{self._last_click['hip_id']}, {max_pt["hip_id"]}],') 
+            print(f'[{self._last_click['hip_id']}, {max_pt["hip_id"]}],  # {self._last_click["name"]} -> {max_pt["name"]}') 
             self._last_click = None
+
+    def constellation_clicked(self, item, ev):
+        self.focus_constellation(item.name)
 
     def keyPressEvent(self, ev):
         ev.accept()
@@ -257,6 +269,8 @@ class StarViewBox(pg.ViewBox):
             t = (float(ev.text()) - 1) / 4
             t = self.start_time + t * (self.stop_time - self.start_time)
             self.slew_to_time(t)
+        elif ev.text() == 'c':
+            self.star_item.toggle_constellations()
         # arrow keys
         elif ev.text() == '[':
             self.speed = -10000

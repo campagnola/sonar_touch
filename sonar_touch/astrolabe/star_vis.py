@@ -52,7 +52,7 @@ class StarVisualization:
         )
 
         self.constellations = {
-            name: Constellation(self.stars, cdata, pen=pg.mkPen((130, 180, 255, 100), width=2))
+            name: Constellation(name, self.stars, cdata, pen=pg.mkPen((130, 180, 255, 100), width=2))
             for name, cdata in constellations.items()
         }
         for constellation in self.constellations.values():
@@ -143,7 +143,8 @@ class StarVisualization:
     def get_unmapped_pos_at_current_time(self):
         # position of stars at current time, without the projection applied
         if self.pos_at_time is None:
-            self.pos_at_time = self.stars.positions + self.stars.vectors * self.time
+            # self.pos_at_time = self.stars.positions + self.stars.vectors * self.time
+            self.pos_at_time = self.stars.positions_at_year(self.time)
             self.mapped_pos = None
         return self.pos_at_time
 
@@ -164,6 +165,11 @@ class StarVisualization:
         for constellation in self.constellations.values():
             constellation.update_positions(unmapped_pos, self.transform)
 
+    def toggle_constellations(self):
+        vis = list(self.constellations.values())[0].isVisible()
+        for constellation in self.constellations.values():
+            constellation.setVisible(not vis)
+
 
 class StarTracks(pg.PlotCurveItem):
     def __init__(self, stars, pen, time_range, stars_to_draw):
@@ -173,13 +179,16 @@ class StarTracks(pg.PlotCurveItem):
         self.start_time = time_range[0]
         self.stop_time = time_range[1]
 
-        verts = []
+        timepoints = []
+        for year in np.linspace(self.start_time, self.stop_time, 100):
+            timepoints.append(self.stars.positions_at_year(year))
+
+        star_inds = [np.argwhere(self.stars.names == star)[0,0] for star in stars_to_draw]            
+
         connect = []
-        for star in stars_to_draw:
-            ind = np.argwhere(self.stars.names == star)[0,0]
-            vec = self.stars.vectors[ind]
-            npts = 1000 * np.clip(int(np.linalg.norm(vec)), 2, 100)
-            pos = self.stars.positions[ind:ind+1, :] + self.stars.vectors[ind:ind+1, :] * np.linspace(self.start_time, self.stop_time, npts)[:, np.newaxis]
+        verts = []
+        for ind in star_inds:
+            pos = np.vstack([tp[ind] for tp in timepoints])
             verts.append(pos)
             connect.append(np.ones(pos.shape[0], dtype=bool))
             connect[-1][-1] = False
@@ -193,8 +202,9 @@ class StarTracks(pg.PlotCurveItem):
 
 
 class Constellation(pg.PlotCurveItem):
-    def __init__(self, stars, cdata, pen):
-        super().__init__()
+    def __init__(self, name, stars, cdata, pen):
+        super().__init__(clickable=True)
+        self.name = name
         self.stars = stars
         self.cdata = cdata
         self.setPen(pen)
