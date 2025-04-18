@@ -26,6 +26,9 @@ class StarViewBox(pg.ViewBox):
         self.start_time = -200000
         self.stop_time = 200000
 
+        self.constellation_alpha = 1.0
+        self.target_constellation_alpha = 1.0
+
         self.initial_visible_radius = 2
         self.zoom = 1.0
         self.target_view = None
@@ -44,7 +47,9 @@ class StarViewBox(pg.ViewBox):
             coorx.STTransform(scale=[1, -1, 1]),  # equal area has y flipped for looking at the globe from the outside
         ])
 
-        self.home_view = self.get_current_view()
+        # self.home_view = self.get_current_view()
+        self.home_view = {'look': [0.055979039245573965, 0.40119613221108497, 0.9142800504572534], 'up': [-0.1287082392064564, -0.9051757474175367, 0.40508154172645], 'zoom': 1.0}
+        self.in_home_mode = True
 
         self.star_item = StarVisualization(self.stars, self.projection)
         self.addItem(self.star_item.scatter)
@@ -58,7 +63,7 @@ class StarViewBox(pg.ViewBox):
             time_range=(self.start_time, self.stop_time),
             stars_to_draw=[
                 'Vega', 'Sirius', 'Capella', 'Arcturus', 'Altair', 'Aljanah', 'Rigil Kentaurus', 'Toliman',
-                'Procyon', 'Pollux', 'Aldebaran', 'Tabit', 'Caph', 'Fomalhaut',
+                'Procyon', 'Pollux', 'Aldebaran', 'Caph', 'Fomalhaut',
             ],
         )
         self.addItem(self.travelers)
@@ -91,6 +96,8 @@ class StarViewBox(pg.ViewBox):
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.timed_update)
         self.timer.start(16)
+
+        self.go_home()
 
     def get_current_view(self):
         look = self.rotation_tr.inverse.map([0., 0., 1.])
@@ -136,12 +143,20 @@ class StarViewBox(pg.ViewBox):
         if view:
             self.slew_to_view(view)
 
+        self.show_constellations(True)
+
     def go_home(self):
+        self.focus_constellation(None)
         self.slew_to_view(self.home_view)
+        self.in_home_mode = True
+        self.show_constellations(False)
 
     def update_text_pos(self):
         self.constellation_text.setPos(self.width() - self.constellation_text.boundingRect().width() - 10,
                                        self.height() - self.constellation_text.boundingRect().height() - 10)
+
+    def show_constellations(self, show):
+        self.target_constellation_alpha = 1.0 if show else 0.0
 
     def resizeEvent(self, ev):
         self.update_text_pos()
@@ -175,6 +190,7 @@ class StarViewBox(pg.ViewBox):
         self.rotation_tr.rotate(-delta.x() * 0.3 / self.zoom, axis=(1, 0, 0))
         self.update_scene_transforms()
         self.target_view = None
+        self.in_home_mode = False
 
     def update_scene_transforms(self):
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -184,6 +200,7 @@ class StarViewBox(pg.ViewBox):
 
     def slew_to_view(self, view):
         self.target_view = view
+        self.in_home_mode = False
 
     def timed_update(self):
         now = time.perf_counter()
@@ -206,14 +223,20 @@ class StarViewBox(pg.ViewBox):
                 t = self.start_time
             self.set_time(t)
 
+
         # slew to target position / orientation / zoom
         if self.target_view is not None:
             view = self.get_current_view()
             target = self.target_view
+            if target['zoom'] < view['zoom']:
+                z_slew_amount = dt / (self.slew_time * 0.5)
+            else:
+                z_slew_amount = dt / (self.slew_time * 2.0)
+
             next_view = {
                 'look': slew_amount * np.array(target['look']) + (1 - slew_amount) * np.array(view['look']),
                 'up': slew_amount * np.array(target['up']) + (1 - slew_amount) * np.array(view['up']),
-                'zoom': slew_amount * target['zoom'] + (1 - slew_amount) * view['zoom'],
+                'zoom': z_slew_amount * target['zoom'] + (1 - z_slew_amount) * view['zoom'],
             }
             next_view['look'] /= np.linalg.norm(next_view['look'])
             right = np.cross(next_view['look'], next_view['up'])
@@ -226,6 +249,20 @@ class StarViewBox(pg.ViewBox):
                np.allclose(next_view['up'], target['up']) and \
                np.allclose(next_view['zoom'], target['zoom']):
                 self.target_view = None
+
+        elif self.in_home_mode:
+            # self.slew_in_direction([0, 0])
+            # self.rotation_tr.rotate(-delta.y() * 0.3 / self.zoom, axis=(0, 1, 0))
+            self.rotation_tr.rotate(0.1, axis=(1, 0, 0))
+            self.update_scene_transforms()
+
+        # fade constellations
+        if self.target_constellation_alpha != self.constellation_alpha:
+            self.constellation_alpha += (self.target_constellation_alpha - self.constellation_alpha) * 0.1
+            if np.abs(self.target_constellation_alpha - self.constellation_alpha) < 0.01:
+                self.constellation_alpha = self.target_constellation_alpha
+            self.star_item.set_constellation_alpha(self.constellation_alpha)
+            self.constellation_text.setOpacity(self.constellation_alpha)
 
     def set_time(self, time):
         self.time = time
@@ -268,6 +305,8 @@ class StarViewBox(pg.ViewBox):
         elif ev.text() in ['+', '=']:
             self.play_speed /= 0.8
             self.speed = self.play_speed
+        elif ev.text() == 'h':
+            self.go_home()
         elif ev.text() == ' ':
             self.speed = self.play_speed
             self.pause(not self.paused)
@@ -276,7 +315,8 @@ class StarViewBox(pg.ViewBox):
             t = self.start_time + t * (self.stop_time - self.start_time)
             self.slew_to_time(t)
         elif ev.text() == 'c':
-            self.star_item.toggle_constellations()
+            # self.star_item.toggle_constellations()
+            self.target_constellation_alpha = 1.0 - self.target_constellation_alpha
         # arrow keys
         elif ev.text() == '[':
             self.speed = -10000
@@ -315,8 +355,10 @@ class StarViewBox(pg.ViewBox):
     def slew_in_direction(self, direction):
         """Slew to a target that is close to the current view target, plus *direction* (x, y)
         """
+        self.focus_constellation(None)
+
         # convert to screen coordinates
-        direction = np.array([-direction[1], direction[0], 0], dtype=float)
+        direction = np.array([-direction[1], -direction[0], 0], dtype=float)
 
         # where are we looking now
         target_view = self.get_current_view()

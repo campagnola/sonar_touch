@@ -170,6 +170,10 @@ class StarVisualization:
         for constellation in self.constellations.values():
             constellation.setVisible(not vis)
 
+    def set_constellation_alpha(self, alpha):
+        for constellation in self.constellations.values():
+            constellation.setOpacity(alpha)
+
 
 class StarTracks(pg.PlotCurveItem):
     def __init__(self, stars, pen, time_range, stars_to_draw):

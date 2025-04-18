@@ -313,12 +313,13 @@ constellations = {
     "4": {
         'desc': """""",
         'lines': [
-            [67301.0, 58001.0],  # Alkaid -> Phecda
-            [58001.0, 62956.0],  # Phecda -> Alioth
-            [62956.0, 65378.0],  # Alioth -> Mizar
+            [67301.0, 65378.0],  # Alkaid -> Mizar
+            [65378.0, 62956.0],  # Mizar -> Alioth
             [62956.0, 59774.0],  # Alioth -> Megrez
-            [59774.0, 53910.0],  # Megrez -> Merak
+            [59774.0, 58001.0],  # Megrez -> Phecda
+            [58001.0, 53910.0],  # Phecda -> Merak
             [53910.0, 54061.0],  # Merak -> Dubhe
+            [54061.0, 59774.0],  # Dubhe -> Megrez
         ],
         'view': {},
     },
