@@ -63,7 +63,7 @@ class StarViewBox(pg.ViewBox):
             time_range=(self.start_time, self.stop_time),
             stars_to_draw=[
                 'Vega', 'Sirius', 'Capella', 'Arcturus', 'Altair', 'Aljanah', 'Rigil Kentaurus', 'Toliman',
-                'Procyon', 'Pollux', 'Aldebaran', 'Caph', 'Fomalhaut',
+                'Procyon', 'Pollux', 'Aldebaran', 'Caph', 'Fomalhaut', 'Dubhe2547186', 'Dubhe2547187', 
             ],
         )
         self.addItem(self.travelers)
@@ -144,11 +144,19 @@ class StarViewBox(pg.ViewBox):
             self.slew_to_view(view)
 
         self.show_constellations(True)
+        self.pause(False)
 
     def go_home(self):
         self.focus_constellation(None)
         self.slew_to_view(self.home_view)
         self.in_home_mode = True
+        self.show_constellations(False)
+
+    def zoom_off(self):
+        self.focus_constellation(None)
+        view = self.home_view.copy()
+        view['zoom'] = 0.00001
+        self.slew_to_view(view)
         self.show_constellations(False)
 
     def update_text_pos(self):
@@ -263,6 +271,8 @@ class StarViewBox(pg.ViewBox):
                 self.constellation_alpha = self.target_constellation_alpha
             self.star_item.set_constellation_alpha(self.constellation_alpha)
             self.constellation_text.setOpacity(self.constellation_alpha)
+
+        self.timeline.setOpacity(np.clip(self.zoom * 1000, 0, 255))
 
     def set_time(self, time):
         self.time = time

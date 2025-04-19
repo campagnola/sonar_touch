@@ -28,8 +28,8 @@ class TrainingDataCollector:
 
     def generate_locations(self):
         while True:
-            for i,row in enumerate(np.linspace(0, 1, 40)):
-                for col in np.linspace(0, 1, 60):
+            for i,row in enumerate(np.linspace(0, 1, 20)):
+                for col in np.linspace(0, 1, 30):
                     if i % 2 == 1:
                         col = 1 - col
                     yield (

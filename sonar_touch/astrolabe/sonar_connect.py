@@ -5,9 +5,14 @@ import pyqtgraph as pg
 
 
 tap_actions = [
-    {'action': 'focus_constellation', 'location': (.055, .309), 'args': ['The Beast']},
-    {'action': 'focus_constellation', 'location': (.729, .158), 'args': ['Lovers on the Water']},
-    {'action': 'go_home', 'location': (.407, .764), 'args': []},
+    {'action': 'focus_constellation', 'location': [0.26535508, 0.50626415], 'args': ['The Hourglass']},
+    {'action': 'focus_constellation', 'location': [0.72001714, 0.81999177], 'args': ['Lovers on the Water']},
+    {'action': 'focus_constellation', 'location': [0.8255281,  0.41119882], 'args': ['The Hunter']},
+    {'action': 'focus_constellation', 'location': [0.6951457, 0.614518 ], 'args': ['The Longneck']},
+    {'action': 'focus_constellation', 'location': [0.7799518, 0.60777  ], 'args': ['Shurap enters the Crack']},
+    {'action': 'focus_constellation', 'location': [0.3902337,  0.58700186], 'args': ['The Beast']},
+    {'action': 'focus_constellation', 'location': [0.31247833, 0.34628168], 'args': ['The Kite']},
+    {'action': 'focus_constellation', 'location': [0.57072484, 0.3306935 ], 'args': ['The Destroyer']},
 ]
 
 locations = np.array([action['location'] for action in tap_actions])
@@ -16,11 +21,14 @@ class SonarAstrolabe:
     def __init__(self):
         self.last_tap_time = None
         self.recent_taps = []
-        self.max_tap_distance = 0.1
+        self.max_tap_distance = 0.2
+        self.off = True
 
         self.proc = teleprox.start_process(qt=True)
         mainwin = self.proc.client._import("sonar_touch.astrolabe.mainwindow")
         self.win, self.view = mainwin.main(_timeout=20)
+
+        self.view.zoom_off()
 
         self.timer = pg.QtCore.QTimer()
         self.timer.timeout.connect(self.timed_update)
@@ -34,33 +42,53 @@ class SonarAstrolabe:
 
         # get 10-sec and 3-sec average location of taps
         locations_10sec = np.array([loc for t, loc in self.recent_taps])
-        locations_3sec = np.array([loc for t, loc in self.recent_taps if now - t < 3])
+        locations_3sec = np.array([loc for t, loc in self.recent_taps if now - t < 1.5])
         avg_loc_10sec = np.mean(locations_10sec, axis=0)
         avg_loc_3sec = np.mean(locations_3sec, axis=0)
 
-        if locations_3sec.shape[0] > 1 and locations_3sec.std(axis=0).max() > 0.1:
-            loc = location
-            print(f"Tap: *{location}   3s avg: {avg_loc_3sec}   10s avg: {avg_loc_10sec}")
-        else:
-            loc = avg_loc_3sec
-            print(f"Tap: {location}   3s avg: *{avg_loc_3sec}   10s avg: {avg_loc_10sec}")
+        # if locations_3sec.shape[0] > 1 and locations_3sec.std(axis=0).max() > 0.1:
+        #     loc = location
+        #     print(f"Tap: *{location}   3s avg: {avg_loc_3sec}   10s avg: {avg_loc_10sec}")
+        # else:
+        #     loc = avg_loc_3sec
+        #     print(f"Tap: {location}   3s avg: *{avg_loc_3sec}   10s avg: {avg_loc_10sec}")
+        loc = location
 
         # distance to all locations
         distances = np.linalg.norm(locations - loc[np.newaxis, :], axis=1)
         # find the closest location
         closest_index = np.argmin(distances)
         # check if the distance is less than the max tap distance
-        if distances[closest_index] < self.max_tap_distance:
+        action = None
+        if self.off:
+            action = {'action': 'go_home', 'args': []}
+        elif distances[closest_index] < self.max_tap_distance:
             action = tap_actions[closest_index]
+        else:
+            if loc[1] > 0.9:
+                t = np.clip(loc[0] * 400000 - 200000, -200000, 200000)
+                if np.abs(t) < 40000:
+                    t = 0
+                action = {'action': 'slew_to_time', 'args': [t]}
+            elif loc[0] < 0.1 or loc[0] > 0.9:
+                direction = direction = loc * 2 - 1
+                direction /= np.linalg.norm(direction)
+                action = {'action': 'slew_in_direction', 'args': [(direction[0], -direction[1])]}
+            elif loc[1] < 0.1:
+                action = {'action': 'go_home', 'args': []}
+            else:
+                action = None
+                print("tap too far away")
+        
+        if action is not None:
+            self.off = False
             print("action:", action)
-            # call the action
             getattr(self.view, action['action'])(*action['args'])
             self.last_tap_time = time.perf_counter()
-        else:
-            print("tap too far away")
 
     def timed_update(self):
-        if self.last_tap_time is not None and time.perf_counter() - self.last_tap_time > 30:
-            self.view.go_home()
+        if self.last_tap_time is not None and time.perf_counter() - self.last_tap_time > 30 and not self.off:
+            self.view.zoom_off()
+            self.off = True
             self.last_tap_time = None
 

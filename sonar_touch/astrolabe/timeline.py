@@ -65,7 +65,11 @@ class Timeline(pg.QtWidgets.QGraphicsItem):
 
     def set_time(self, time):
         self.time = time
-        self.label.setText(f'{int(time/1000):d} ky')
+        yr = int(time/1000)
+        if yr == 0:
+            self.label.setText('-singularity-')
+        else:
+            self.label.setText(f'{yr:d} ky')
         self.label.setFont(pg.QtGui.QFont('Arial', 20, weight=1))
 
         fraction_of_range = (time - self.time_range[0]) / (self.time_range[1] - self.time_range[0])
